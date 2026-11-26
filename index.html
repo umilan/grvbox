@@ -333,7 +333,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.49'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.50'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1510,9 +1510,9 @@ for (let r = 0; r < 10; r++) {
       b.className = 'btn fn spare';
       b.textContent = 'ABCDEFGH'[r - 1];
       if (r === 1) { b.textContent = 'A\nSONGS'; fnKeys.LOAD = b; toggleKey(b, () => openProjects('load')); }
-      else if (r === 2) { // SAVE is a function key: tap = save now, hold = save as a new project
+      else if (r === 2) { // SAVE: tap = blink and pick a slot to save into (tap again = cancel); hold = save into the current song's slot
         b.textContent = 'B\nSAVE'; fnKeys.SAVE = b;
-        holdKey(b, () => quickSave(false), () => quickSave(true));
+        holdKey(b, toggleSavePick, () => quickSave(false));
       }
       else if (r === 3) modifierKey(b, 'dup', 'DUP');
       else if (r === 4) modifierKey(b, 'clear', 'CLEAR');
@@ -1978,10 +1978,23 @@ function loopEditDown(tr, r, c, info) {
 }
 // B / SAVE: tap saves over the current project (the one last saved or loaded), or into the first
 // free slot if there is none; hold saves into the first free slot as a new project
+// SAVE picking: the songs page opens in save mode with SAVE lit and blinking; tapping a slot saves there
+// and SAVE goes back to idle (and you return to where you were)
+let saveReturn = false;
+function toggleSavePick() {
+  if (projPage === 'save') { projPage = saveReturn; saveReturn = false; releaseAll(); render(); return say('Save cancelled'); }
+  saveReturn = projPage; // 'load' if you were on the songs page, else false
+  openProjects('save');
+  say('Pick a slot to save into \u00b7 SAVE again cancels');
+}
+setInterval(() => { // SAVE blinks while it waits for a slot
+  if (projPage === 'save') fnKeys.SAVE.setAttribute('aria-pressed', String(fnKeys.SAVE.getAttribute('aria-pressed') !== 'true'));
+  else if (fnKeys.SAVE.getAttribute('aria-pressed') === 'true') fnKeys.SAVE.setAttribute('aria-pressed', 'false');
+}, 350);
 function quickSave(asNew) {
   let slot = !asNew && currentProj >= 0 ? currentProj : -1;
   if (slot < 0) for (let i = 0; i < PROJ_SLOTS; i++) if (!projects[i]) { slot = i; break; }
-  if (slot < 0) return say('All 48 project slots are full · delete one on the SONGS page (CLEAR + tap)');
+  if (slot < 0) return say('All 128 song slots are full · delete one on the SONGS page (CLEAR + tap)');
   saveProject(slot, !!projects[slot]);
 }
 function loadProject(slot) {
@@ -2017,7 +2030,7 @@ function projDesc(r, c) {
 function projDown(r, c) {
   const slot = projBank * 64 + r * 8 + c;
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say(DEMOS[slot] ? 'Built-in song \u00b7 save over it to replace it' : 'That slot is empty'); return; }
-  if (projPage === 'save') { saveProject(slot, !!projects[slot]); return; }
+  if (projPage === 'save') { saveProject(slot, !!projects[slot]); projPage = saveReturn; saveReturn = false; render(); return; }
   if (!projects[slot] && !DEMOS[slot]) { say('Nothing saved there · use B to save'); return; }
   loadProject(slot);
 }
