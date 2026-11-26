@@ -329,7 +329,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.42'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.43'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1617,7 +1617,7 @@ function say(t) {
   renderScreen();
 }
 // LP MINI hides the top pad row, so on the CLIPS page the clip slots move up one row:
-// visible rows show slots 1–5, then SOLO and MUTE
+// visible rows show slots 1–5, then MUTE and SOLO
 const isMini = () => prefs.layout === 'mini';
 const clipRow = r => isMini() && !page2 ? (r <= 5 ? r - 1 : r) : r;
 // LP MINI has 7 tracks: track 8 is hidden and silent
@@ -2159,10 +2159,10 @@ function padDesc(r, c) {
       const val = v => sy ? noteLab(sy[v]) : sliderPct(v);
       return { label: lvl === 0 ? `${p[c]}${dot}\n${val(0)}` : `${val(lvl)}`, tone: lvl <= P[c] ? 'sel' : 'white' };
     }
-    case 4: { // MIX: column = track; fader on rows 1–6, then SOLO and MUTE
+    case 4: { // MIX: column = track; fader on rows 1–6, then MUTE and SOLO
       const t = S.tracks[c];
-      if (r === 6) return { label: 'SOLO', tone: t.solo ? 'soloon' : 'solooff' };
-      if (r === 7) return { label: 'MUTE', tone: t.mute ? 'muteon' : 'muteoff', faded: anySoloed() };
+      if (r === 7) return { label: 'SOLO', tone: t.solo ? 'soloon' : 'solooff' }; // MUTE above, SOLO at the bottom
+      if (r === 6) return { label: 'MUTE', tone: t.mute ? 'muteon' : 'muteoff', faded: anySoloed() };
       // the value sits on the fader's top lit cell
       const dot = activeAuto(c).some(a => a.k === 'vol') ? ' •' : '';
       // faders of silent tracks are dimmed: not soloed while anything is soloed, otherwise muted
@@ -2171,9 +2171,9 @@ function padDesc(r, c) {
     case 2: { // CLIP/SEQ
       if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
         r = clipRow(r);
-        // column = track (lines up with T1–T8), rows 1–6 are clip slots, then SOLO and MUTE (bottom)
-        if (r === 6) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
-        if (r === 7) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
+        // column = track (lines up with T1–T8), rows 1–6 are clip slots, then MUTE and SOLO (bottom)
+        if (r === 7) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
+        if (r === 6) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
         const t = S.tracks[c], cl = t.clips[r], clab = `${instName(t)} ${r + 1}`; // e.g. KICK 1
         if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? clab : '', tone: 'copied' };
         if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'empty' };
@@ -2378,8 +2378,8 @@ function padDown(r, c) {
     }
     case 4: {
       const t = S.tracks[c], name = labelOf(trackButtons[c]);
-      if (r === 7) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
-      else if (r === 6) { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
+      if (r === 6) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
+      else if (r === 7) { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
       else if (mods.clear) { clearAuto(c, a => a.k === 'vol', 'Volume'); break; }
       else { commit(); t.vol = 5 - r; recordAuto(c, { k: 'vol', v: t.vol }); say(`${name} volume ${volPct(t)}%`); }
       applyMix();
@@ -2390,7 +2390,7 @@ function padDown(r, c) {
         r = clipRow(r);
         if (r >= 6) {
           const t = S.tracks[c], name = labelOf(trackButtons[c]);
-          if (r === 7) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
+          if (r === 6) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
           else { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
           applyMix();
           break;
@@ -2512,7 +2512,7 @@ function onState(r, c) {
   }
   const t = S.tracks[c];
   if (activeMode === 0 && !page2 && r > 0) return !!t.fxOn[fxAt(r)];
-  if ((activeMode === 4 || (activeMode === 2 && !page2)) && r >= 6) return r === 6 ? t.solo : t.mute;
+  if ((activeMode === 4 || (activeMode === 2 && !page2)) && r >= 6) return r === 7 ? t.solo : t.mute;
   if (activeMode === 2 && page2 && r >= 2) {
     const tr = S.tracks[curTrack], cl = tr.clips[tr.active], L = stepLayout(cl);
     if (tr.loop >= 0 && loopSlots[tr.loop]) return null;
