@@ -365,7 +365,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.64'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.65'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1561,9 +1561,9 @@ for (let r = 0; r < 10; r++) {
       b.className = 'btn fn spare';
       b.textContent = 'ABCDEFGH'[r - 1];
       if (r === 1) { b.textContent = 'A\nSONGS'; fnKeys.LOAD = b; toggleKey(b, () => openProjects('load')); }
-      else if (r === 2) { // SAVE: tap = blink and pick a slot to save into (tap again = cancel); hold = save into the current song's slot
+      else if (r === 2) { // SAVE: tap = arm (blinks), tap again = save + fast flashing for a bar; hold = cancel
         b.textContent = 'B\nSAVE'; fnKeys.SAVE = b; b.classList.add('ok'); // SAVE on = success colour (green)
-        holdKey(b, toggleSavePick, () => quickSave(false));
+        holdKey(b, toggleSavePick, cancelSave);
       }
       else if (r === 3) modifierKey(b, 'dup', 'DUP');
       else if (r === 4) modifierKey(b, 'clear', 'CLEAR');
@@ -2029,17 +2029,31 @@ function loopEditDown(tr, r, c, info) {
 }
 // B / SAVE: tap saves over the current project (the one last saved or loaded), or into the first
 // free slot if there is none; hold saves into the first free slot as a new project
-// SAVE picking: the songs page opens in save mode with SAVE lit and blinking; tapping a slot saves there
-// and SAVE goes back to idle (and you return to where you were)
-let saveReturn = false;
+// SAVE: tap = arm it (blinks green, you stay where you are); tap again = save the song into its slot
+// (the current song's, or the first free one), confirmed by fast flashing for one bar. Hold SAVE = cancel.
+// While SAVE is armed you can also tap a slot on the songs page (A) to save there instead.
+let saveArmed = false, saveConfirmT = null;
 function toggleSavePick() {
-  if (projPage === 'save') { projPage = saveReturn; saveReturn = false; releaseAll(); render(); return say('Save cancelled'); }
-  saveReturn = projPage; // 'load' if you were on the songs page, else false
-  openProjects('save');
-  say('Pick a slot to save into \u00b7 SAVE again cancels');
+  if (saveConfirmT) return; // still confirming the last save
+  if (!saveArmed) { saveArmed = true; return say('SAVE armed \u00b7 tap SAVE again to save (hold = cancel)'); }
+  saveArmed = false;
+  quickSave(false);
+  confirmSave();
 }
-function blinkKeys() { // SAVE blinks while it waits for a slot; CLEAR blinks the same way while it's on
-  [[fnKeys.SAVE, projPage === 'save'], [fnKeys.CLEAR, mods.clear]].forEach(([b, on]) => {
+function cancelSave() { if (saveArmed) { saveArmed = false; say('Save cancelled'); } }
+// confirmation: SAVE flashes at four times the tempo for one bar, then goes back to idle
+function confirmSave() {
+  const b = fnKeys.SAVE, step = 60000 / S.bpm / 8, end = performance.now() + 4 * 60000 / S.bpm;
+  clearInterval(saveConfirmT);
+  let on = false;
+  saveConfirmT = setInterval(() => {
+    on = !on; b.setAttribute('aria-pressed', String(on));
+    if (performance.now() >= end) { clearInterval(saveConfirmT); saveConfirmT = null; b.setAttribute('aria-pressed', 'false'); }
+  }, step);
+}
+function blinkKeys() { // SAVE blinks while armed; CLEAR blinks the same way while it's on
+  [[fnKeys.SAVE, saveArmed && !saveConfirmT, !!saveConfirmT], [fnKeys.CLEAR, mods.clear, false]].forEach(([b, on, busy]) => {
+    if (busy) return; // the confirmation flashing drives it
     if (on) b.setAttribute('aria-pressed', String(selBlink));
     else if (b.getAttribute('aria-pressed') === 'true') b.setAttribute('aria-pressed', 'false');
   });
@@ -2083,7 +2097,8 @@ function projDesc(r, c) {
 function projDown(r, c) {
   const slot = projBank * 64 + r * 8 + c;
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say(DEMOS[slot] ? 'Built-in song \u00b7 save over it to replace it' : 'That slot is empty'); return; }
-  if (projPage === 'save') { saveProject(slot, !!projects[slot]); projPage = saveReturn; saveReturn = false; render(); return; }
+  if (projPage === 'save') { saveProject(slot, !!projects[slot]); projPage = 'load'; render(); return; }
+  if (saveArmed) { saveArmed = false; saveProject(slot, !!projects[slot]); confirmSave(); return; } // armed SAVE + tap a slot = save there
   if (!projects[slot] && !DEMOS[slot]) { say('Nothing saved there · use B to save'); return; }
   loadProject(slot);
 }
