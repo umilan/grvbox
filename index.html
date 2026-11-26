@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.10'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.11'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -1404,6 +1404,8 @@ const isMini = () => prefs.layout === 'mini';
 const clipRow = r => isMini() && !page2 ? (r <= 5 ? r - 1 : r) : r;
 // LP MINI has 7 tracks: track 8 is hidden and silent
 const trackOff = i => isMini() && i === 7;
+// SND little keyboard's ALL button: where the high C was; LP MINI hides that column, so it sits in the gap above the low C
+const isAllPad = (r, c) => isMini() ? r === 6 && c === 0 : r === 7 && c === 7;
 function selectTrack(i) { if (trackOff(i)) return say('Track 8 is not available on LP MINI'); curTrack = i; releaseAll(); render(); }
 // ← → transpose the KEYS page by semitones (±12)
 function shiftTrans(d) {
@@ -1867,7 +1869,7 @@ function padDesc(r, c) {
         }
         if (r < 6) return { tone: 'off' };
         // little keyboard: ALL on = one sound for every note; off = pick a note, then its sound
-        if (r === 7 && c === 7) return { label: 'ALL', tone: tr.split ? 'alldim' : 'sel' }; // off = dimmed blue
+        if (isAllPad(r, c)) return { label: 'ALL', tone: tr.split ? 'alldim' : 'sel' }; // off = dimmed blue
         const k = miniKey(r, c);
         if (k === null) return { tone: 'gap' };
         const pc = k % 12;
@@ -2016,7 +2018,7 @@ function padDown(r, c) {
           if (tr.loop < 0) stopLoop(tr); else ensureLoopBuf(c);
           const L = loopSlots[c], name = labelOf(trackButtons[curTrack]);
           say(tr.loop === c ? `${name} plays ${L.name} (${L.bars} bar${L.bars > 1 ? 's' : ''}) · starts on the next bar${playing ? '' : ' after PLAY'}` : `${name} loop off`);
-        } else if (r === 7 && c === 7) { // ALL sits where the high C was
+        } else if (isAllPad(r, c)) { // ALL sits where the high C was
           commit();
           tr.split = !tr.split; tr.kitSel = 0;
           say(tr.split ? 'Sound per note · pick a note, then a sound' : 'One sound for all notes');
@@ -2320,7 +2322,7 @@ function padsForNote(n) {
       const L = stepLayout(S.tracks[curTrack].clips[S.tracks[curTrack].active]);
       if (r >= L.kbStart) m = pianoNote(r - L.kbStart, c, L.pairs, L.base);
     }
-    else if (activeMode === 1 && !page2 && r >= 6 && !(r === 7 && c === 7)) {
+    else if (activeMode === 1 && !page2 && r >= 6 && !isAllPad(r, c)) {
       const k = miniKey(r, c);
       if (k !== null && k % 12 === ((n % 12) + 12) % 12) { out.push(pads[r][c]); continue; }
     }
