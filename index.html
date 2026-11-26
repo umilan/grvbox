@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.30'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.31'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1516,7 +1516,12 @@ function shiftTrans(d) {
   render();
   say(`Transpose ${S.transpose > 0 ? '+' : ''}${S.transpose}`);
 }
-function shiftOct(d) { S.oct = Math.max(0, Math.min(5, S.oct + d)); render(); say(`Octave ${S.oct}`); }
+function shiftOct(d) {
+  if (projPage) { // songs page: \u2191 = slots 65\u2013128, \u2193 = slots 1\u201364
+    projBank = d > 0 ? 1 : 0; render();
+    return say(`Songs ${projBank * 64 + 1}\u2013${projBank * 64 + 64}`);
+  }
+  S.oct = Math.max(0, Math.min(5, S.oct + d)); render(); say(`Octave ${S.oct}`); }
 function setRec(on) {
   S.rec = on;
   S.recStop = false;
@@ -1578,7 +1583,7 @@ function prefsDown(r, c) {
   say(`${p.name} ${prefs[p.key] ? 'on' : 'off'}`);
 }
 /* ---------- PROJECTS (A): 48 slots, saved to your claude.ai account when signed in, else this browser ---------- */
-const PROJ_SLOTS = 48, LOCAL_PROJ = 'groovebox-projects';
+const PROJ_SLOTS = 128, LOCAL_PROJ = 'groovebox-projects';
 let projects = {};      // slot → { savedAt, data }
 let currentProj = -1;   // slot last saved or loaded
 let projStore = {
@@ -1862,8 +1867,10 @@ async function deleteProject(slot) {
   } catch (e) { say(`Couldn't delete project ${slot + 1}`); }
   render();
 }
+// 128 song slots on two pages of 64; \u2191 / \u2193 switch pages while the songs page is open
+let projBank = 0;
 function projDesc(r, c) {
-  const slot = r * 8 + c;
+  const slot = projBank * 64 + r * 8 + c;
   if (slot >= PROJ_SLOTS) return { tone: 'off' };
   if (!projects[slot]) return { label: `${slot + 1}`, tone: 'empty' };
   return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' };
@@ -1871,7 +1878,7 @@ function projDesc(r, c) {
 // LOAD page: tap a saved slot to load it. SAVE page: tap any slot to save there (replaces what was in it).
 // CLEAR + tap deletes a save on either page.
 function projDown(r, c) {
-  const slot = r * 8 + c;
+  const slot = projBank * 64 + r * 8 + c;
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say('That slot is empty'); return; }
   if (projPage === 'save') { saveProject(slot, !!projects[slot]); return; }
   if (!projects[slot]) { say('Nothing saved there · use B to save'); return; }
@@ -2585,7 +2592,7 @@ function instName(tr) {
 }
 // SETTINGS is part of the section group: while it's open no section is lit
 function openSettings() { appSettings = true; projPage = false; midiPage = false; settings = false; releaseAll(); render(); }
-function openProjects(mode) { projPage = mode; appSettings = false; midiPage = false; settings = false; releaseAll(); render(); }
+function openProjects(mode) { if (!projPage && currentProj >= 0) projBank = currentProj >= 64 ? 1 : 0; projPage = mode; appSettings = false; midiPage = false; settings = false; releaseAll(); render(); }
 // Section buttons (and their keys): pick a section; the selected one again flips to its page 2
 function pickSection(i) {
   // a page with no exit button of its own (settings, songs, MIDI, XY pad): the lit section key is BACK,
@@ -2646,8 +2653,9 @@ function renderScreen() {
     ? (midiOutPage ? `MIDI out · pick each track's output (channel = track) · ${midiOutputs.length ? midiOutputs.length + ' output(s) found' : 'no MIDI outputs connected'}`
                    : `MIDI in · pick each track's input · ${midiInputs.length ? midiInputs.length + ' device(s) found' : 'no MIDI devices connected'} · tap MIDI again for outputs`)
     : midiStatus === 'asking' ? 'MIDI · asking for access…' : 'MIDI · MIDI devices are not available in this browser view (KBD still works)';
-  if (projPage === 'load') sub = `Songs (${projStore.where}) · tap a saved song to load it · CLEAR+tap = delete`;
-  if (projPage === 'save') sub = `Save project (${projStore.where}) · tap a slot (replaces it) · CLEAR+tap = delete`;
+  const bank = `${projBank * 64 + 1}\u2013${projBank * 64 + 64} (\u2191\u2193)`;
+  if (projPage === 'load') sub = `Songs ${bank} (${projStore.where}) · tap a saved song to load it · CLEAR+tap = delete`;
+  if (projPage === 'save') sub = `Save project ${bank} (${projStore.where}) · tap a slot (replaces it) · CLEAR+tap = delete`;
   if (clipboard) sub = 'Clip copied · tap a slot on CLIPS to place it · press DUP to cancel';
   if (mods.dup) sub = 'DUP · tap a clip to copy it';
   if (mods.clear) sub = 'CLEAR · tap a clip to delete it, or an automated fader / effect (•)';
