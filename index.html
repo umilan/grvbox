@@ -329,7 +329,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.40'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.41'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2970,7 +2970,7 @@ const THEMES = {
   // active 75 %, pressed 100 %, non-interactive space dark, a played note +20 % over its state.
   // LEDs: idle B = grey 1, idle = grey 2, active / pressed = white 3, empty = off.
   mono: { name: 'Mono (white levels)', noteBoost: true,
-    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], keyD: ['#404040', 1], empty: ['#1e1e1e', 0], emptyCur: ['#262626', 0], dim: ['#404040', 1],
+    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], keyD: ['#404040', 1], empty: ['#1e1e1e', 0], emptyCur: ['#353535', 1], dim: ['#404040', 1], // emptyCur = selected track's column, 10 % white over the page
     sel: ['#bfbfbf', 3], hot: ['#bfbfbf', 3], fn: ['#808080', 2], fnDown: ['#bfbfbf', 3], fnOn: ['#bfbfbf', 3], bright: ['#e0e0e0', 3],
     rec: ['#bfbfbf', 3], recDim: ['#404040', 1], queued: ['#bfbfbf', 3], queuedDim: [null, 1],
     mute: ['#808080', 2], muteOn: ['#bfbfbf', 3], solo: ['#404040', 1], soloOn: ['#bfbfbf', 3],
