@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.18'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.19'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2761,16 +2761,40 @@ const THEMES = {
   night: { name: 'Night (dim)',
     pad: ['#160a04', 11], keyL: ['#7a3a12', 10], keyD: ['#3a1a08', 11], empty: ['#0a0604', 0], emptyCur: ['#160a04', 11], dim: ['#100804', 0],
     sel: ['#b0604a', 4], hot: ['#a05a20', 9], fn: ['#140a06', 11], fnDown: ['#3a1a10', 10], fnOn: ['#8a3a1a', 9], bright: ['#b06a40', 8] },
+  // \u2014 based on Novation's own conventions \u2014
+  // Ableton Live session on Launchpad: playing = green, triggered = blinking green, recording = red,
+  // Mute = yellow, Solo = blue, Record Arm / Stop = red
+  session: { name: 'Novation \u00b7 Live session',
+    pad: ['#262626', 1], keyL: ['#e6e6e6', 3], keyD: ['#e07b1a', 9], empty: ['#000000', 0], emptyCur: ['#141414', 0], dim: ['#1a1a1a', 1],
+    sel: ['#34d3ff', 37], hot: ['#20e050', 21], fn: ['#1a1a1a', 1], fnDown: ['#555555', 2], fnOn: ['#e6e6e6', 3], bright: ['#ffe14a', 12],
+    queued: ['#7dffa0', 20], queuedDim: [null, 23],
+    mute: ['#4d4200', 15], muteOn: ['#ffd21f', 13], solo: ['#0f2a5c', 47], soloOn: ['#2f6dff', 45] },
+  // Launchpad Pro MK3 sequencer: white playhead, filled steps green, root notes purple
+  sequencer: { name: 'Novation \u00b7 Pro sequencer',
+    pad: ['#222222', 1], keyL: ['#8a8a8a', 2], keyD: ['#19c34a', 21], empty: ['#0c0c0c', 0], emptyCur: ['#1c1c1c', 1], dim: ['#161616', 0],
+    sel: ['#b44cff', 49], hot: ['#ffffff', 3], fn: ['#1a1a1a', 1], fnDown: ['#4a4a4a', 2], fnOn: ['#b44cff', 49], bright: ['#e0b0ff', 48] },
+  // Circuit: white playhead, drum hits bright blue, a picked step pink, purple synth track
+  circuit: { name: 'Novation \u00b7 Circuit',
+    pad: ['#0c1330', 47], keyL: ['#7aa0ff', 40], keyD: ['#2f6dff', 45], empty: ['#05070f', 0], emptyCur: ['#0c1330', 47], dim: ['#0a0f22', 47],
+    sel: ['#ff4cb0', 56], hot: ['#ffffff', 3], fn: ['#140a24', 51], fnDown: ['#3a1a66', 50], fnOn: ['#9b4cff', 49], bright: ['#d2b0ff', 48] },
+  // the look before themes: LEDs copy the nearest colour of each button on screen
+  original: { name: 'Original (LEDs copy the screen)', css: false, match: true },
 };
 // which CSS variables each role paints (inks are worked out from the colour's lightness)
 const ROLE_VARS = {
   pad: ['--pad'], keyL: ['--key-light'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
   sel: ['--sel'], hot: ['--hot'], fn: ['--fn', '--nav', '--track', '--mode'], fnDown: ['--fn-down', '--nav-down'],
   fnOn: ['--fn-on', '--track-on', '--mode-on'], bright: ['--mode-bright'],
+  // shared roles, only when a theme sets its own
+  rec: ['--rec'], recDim: ['--rec-dim'], queued: ['--queued'], mute: ['--mute-off'], muteOn: ['--mute-on'],
+  solo: ['--solo-off'], soloOn: ['--solo-on'], arm: ['--arm-off'], copied: ['--copied'], allDim: ['--all-dim'], press: ['--press', '--pad-down'],
 };
 const INK_OF = { '--pad': '--pad-ink', '--key-light': '--key-light-ink', '--key-dark': '--key-dark-ink', '--dim': '--dim-ink', '--sel': '--sel-ink',
   '--hot': '--hot-ink', '--fn': '--fn-ink', '--nav': '--nav-ink', '--track': '--track-ink', '--mode': '--mode-ink',
-  '--fn-on': '--fn-on-ink', '--track-on': '--track-on-ink', '--mode-on': '--mode-on-ink', '--mode-bright': '--mode-bright-ink' };
+  '--fn-on': '--fn-on-ink', '--track-on': '--track-on-ink', '--mode-on': '--mode-on-ink', '--mode-bright': '--mode-bright-ink',
+  '--rec': '--rec-ink', '--rec-dim': '--rec-dim-ink', '--mute-off': '--mute-off-ink', '--mute-on': '--mute-on-ink',
+  '--solo-off': '--solo-off-ink', '--solo-on': '--solo-on-ink', '--arm-off': '--arm-off-ink', '--copied': '--copied-ink',
+  '--all-dim': '--all-dim-ink', '--press': '--press-ink', '--pad-down': '--pad-down-ink' };
 const themeVars = new Set();
 function inkFor(hex) {
   const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
@@ -2796,8 +2820,25 @@ const ledFaint = i => i <= 0 ? 0 : i <= 3 ? 1 : i - ((i - 4) % 4) + 3; // the sa
 const PAD_ROLE = { light: 'keyL', dark: 'keyD', muteoff: 'mute', muteon: 'muteOn', solooff: 'solo', soloon: 'soloOn', copied: 'copied',
   armon: 'rec', armoff: 'arm', alldim: 'allDim', dim: 'dim', empty: 'empty', emptycur: 'emptyCur', sel: 'sel', hot: 'hot', rec: 'rec' };
 // the LED colour of one on-screen button, from what it means (not from its pixels)
+// Original theme: nearest Launchpad palette colour to the button's screen colour
+const LP_PAL = [[0, 0, 0, 0], [1, 28, 28, 28], [2, 124, 124, 124], [3, 255, 255, 255], [4, 255, 76, 76], [5, 255, 0, 0],
+  [6, 89, 0, 0], [9, 255, 84, 0], [8, 255, 189, 108], [12, 255, 255, 76], [13, 255, 255, 0], [14, 89, 89, 0], [15, 25, 25, 0],
+  [21, 0, 255, 0], [22, 0, 89, 0], [37, 0, 169, 255], [41, 76, 136, 255], [45, 0, 0, 255], [46, 0, 0, 89], [47, 0, 0, 25],
+  [49, 135, 76, 255], [52, 255, 76, 255], [53, 255, 0, 255], [54, 89, 0, 89], [55, 25, 0, 25], [56, 255, 76, 135], [57, 255, 0, 84], [58, 89, 0, 29]];
+function lpNearest(el) {
+  const cs = getComputedStyle(el);
+  if (cs.visibility === 'hidden' || +cs.opacity < .3) return 0;
+  const m = cs.backgroundColor.match(/[\d.]+/g);
+  if (!m) return 0;
+  const [r, g, b, a = 1] = m.map(Number);
+  if (+a < .2) return 0;
+  let best = 0, bd = Infinity;
+  LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2; if (d < bd) { bd = d; best = i; } });
+  return best;
+}
 function lpColor(el) {
   const cl = el.classList, root = document.documentElement.classList;
+  if (theme.match) return (cl.contains('gap') || cl.contains('off') || (cl.contains('spare') && labelOf(el).trim().length <= 1)) ? 0 : lpNearest(el);
   if (cl.contains('pad')) {
     if (cl.contains('gap') || cl.contains('off')) return 0;
     if (cl.contains('down')) return led('press');
