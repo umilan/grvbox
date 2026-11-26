@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.11'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.12'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -384,7 +384,7 @@ const midiHeld = new Map();
 // MIDI device slots on the MIDI page (rows 1\u20134, top to bottom). A connected device lands in the first
 // slot whose name pattern matches; anything unrecognised counts as an external keyboard.
 const MIDI_SLOTS = [
-  { id: 'lp', label: 'LP', re: /launchpad/i },
+  { id: 'lp', label: 'LP', re: /launchpad|^lp(pro|mini|x)/i },
   { id: 'trig', label: 'TRIG IO', re: /trigger/i },
   { id: 'pad8', label: '8PAD', re: /sample\s*pad/i },
   { id: 'keys', label: 'EXT KEYS', re: /./ },
@@ -394,25 +394,31 @@ function refreshMidiInputs(access) {
   midiInputs = [];
   access.inputs.forEach(inp => {
     if (inp.state === 'disconnected') return;
+    if (lpSkip(inp.name)) return; // a Launchpad's DAW / DIN port: only its main port is used
     const slot = slotFor(inp.name);
     midiInputs.push({ id: inp.id, name: inp.name || 'MIDI in', slot });
     inp.onmidimessage = e => onMidi(slot, e.data);
   });
-  const lp = midiInputs.find(m => /launchpad/i.test(m.name));
+  const lp = midiInputs.find(m => m.slot === 'lp');
   if (lp) setLayout(/mini/i.test(lp.name) ? 'mini' : 'pro', `${lp.name} connected`);
   midiOutputs = [];
   access.outputs.forEach(o => { if (o.state !== 'disconnected') midiOutputs.push({ id: o.id, name: o.name || 'MIDI out', port: o }); });
+  lpConnect(access);
   if (midiPage) render();
 }
 function startMidi() {
   if (midiStatus === 'ok' || midiStatus === 'asking') return;
   if (!navigator.requestMIDIAccess) { midiStatus = 'unavailable'; return; }
   midiStatus = 'asking';
-  navigator.requestMIDIAccess({ sysex: false }).then(access => {
+  // ask for SysEx too (it lets the app switch a Launchpad to Programmer mode); without it, plain MIDI
+  const ok = access => {
     midiStatus = 'ok';
     refreshMidiInputs(access);
     access.onstatechange = () => refreshMidiInputs(access);
-  }).catch(() => { midiStatus = 'unavailable'; if (midiPage) render(); });
+  };
+  navigator.requestMIDIAccess({ sysex: true }).then(ok)
+    .catch(() => navigator.requestMIDIAccess({ sysex: false }).then(ok))
+    .catch(() => { midiStatus = 'unavailable'; if (midiPage) render(); });
 }
 // MIDI clock in (when CLOCK IN is on): follow the tempo from 24 ticks per beat, and Start / Stop
 let clockTicks = [];
@@ -431,6 +437,10 @@ function onClock(b) {
 function onMidi(id, data) {
   if (data[0] >= 0xf8) { if (prefs.clockIn) onClock(data[0]); return; }
   const cmd = data[0] & 0xf0, n = data[1], vel = data[2];
+  if (id === 'lp') { // the Launchpad is the grid: its buttons press the buttons on screen
+    if (cmd === 0x90 || cmd === 0x80 || cmd === 0xb0) lpPress(n, cmd !== 0x80 && vel > 0);
+    return;
+  }
   if (cmd === 0x90 && vel > 0) midiNoteOn(id, n);
   else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) midiNoteOff(id, n);
 }
@@ -2556,7 +2566,10 @@ function applyLayout() {
     const pos = placeOf(+el.dataset.r, +el.dataset.c);
     el.hidden = !pos || el.classList.contains('corner');
     if (pos) { el.style.gridRow = pos[0]; el.style.gridColumn = pos[1]; }
+    el._hw = pos && !el.hidden ? hwId(pos[0], pos[1]) : null;
   });
+  lpByHw = new Map([...grid.children].filter(el => el._hw).map(el => [el._hw, el]));
+  lpLeds.clear(); // repaint every LED in the new layout
   document.querySelectorAll('#hwPick button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.hw === (prefs.layout || 'pro'))));
 }
 function setLayout(hw, why) {
@@ -2566,6 +2579,80 @@ function setLayout(hw, why) {
   render();
   say(`Layout \u00b7 ${hw === 'mini' ? 'LP MINI (9\u00d79)' : 'LP PRO (10\u00d710)'}${why ? ' \u00b7 ' + why : ''}`);
 }
+/* ---------- Launchpad as the controller (Programmer mode) ----------
+   In Programmer mode every Launchpad button has an id = row * 10 + column, counted from the bottom-left:
+   pads 11\u201388, top row 91\u201398, right column 19\u201389, and on the Pro the left column 10\u201380 and the
+   bottom row 101\u2013108 (Pro MK3) or 1\u20138 (Pro 2015). Pads send notes, the round buttons send CC.
+   A press on the hardware presses the button in the same spot on screen, and the LEDs copy the screen. */
+const LP_PORT_SKIP = /\bDAW\b|\bDIN\b|MIDIIN\d|MIDIOUT\d/i;
+const lpSkip = name => MIDI_SLOTS[0].re.test(name || '') && LP_PORT_SKIP.test(name || '');
+let lpOut = null, lpMk3 = false, lpByHw = new Map();
+const lpLeds = new Map();
+// screen cell (grid row / column, 1-based from the top-left) \u2192 hardware id
+function hwId(gr, gc) {
+  if (prefs.layout === 'mini') return (10 - gr) * 10 + gc;       // 9\u00d79: pads 8\u00d78 + top row + right column
+  const R = 10 - gr, C = gc - 1;                                  // 10\u00d710: rows 0\u20139, columns 0\u20139
+  if (R === 0) return C >= 1 && C <= 8 ? (lpMk3 ? 100 + C : C) : null;
+  return R * 10 + C;
+}
+const lpIsPad = id => id >= 11 && id <= 88 && id % 10 >= 1 && id % 10 <= 8;
+function lpPress(id, down) {
+  if (!lpByHw.size) applyLayout();
+  if (down) audio();
+  const el = lpByHw.get(id) || (id >= 1 && id <= 8 && lpByHw.get(100 + id)) || (id >= 101 && id <= 108 && lpByHw.get(id - 100));
+  if (!el) { if (down) say(`Launchpad button ${id} has nothing on screen here`); return; }
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (r >= 1 && r <= 8 && c >= 0 && c <= 7) return down ? padDown(r - 1, c) : padUp(r - 1, c);
+  const o = { bubbles: true, pointerId: 1000 + id, isPrimary: false };
+  if (down) el.dispatchEvent(new PointerEvent('pointerdown', o));
+  else { el.dispatchEvent(new PointerEvent('pointerup', o)); el.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+}
+// the Launchpad's main port (not DAW / DIN); with SysEx allowed, switch it to Programmer mode
+function lpConnect(access) {
+  let port = null;
+  access.outputs.forEach(o => { if (!port && o.state !== 'disconnected' && MIDI_SLOTS[0].re.test(o.name || '') && !LP_PORT_SKIP.test(o.name)) port = o; });
+  if (port === lpOut) return;
+  lpOut = port; lpLeds.clear();
+  if (!port) return;
+  lpMk3 = /mk3|lppro|lpmini|lpx/i.test(port.name);
+  applyLayout();
+  if (access.sysexEnabled) {
+    const dev = /mini/i.test(port.name) ? 0x0d : /lpx|launchpad x/i.test(port.name) ? 0x0c : lpMk3 ? 0x0e : null;
+    try {
+      if (dev !== null) port.send([0xf0, 0x00, 0x20, 0x29, 0x02, dev, 0x0e, 0x01, 0xf7]); // MK3 family: Programmer mode
+      else { port.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x21, 0x01, 0xf7]); port.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x2c, 0x03, 0xf7]); } // Pro 2015
+    } catch (e) {}
+  }
+  say(`${port.name} \u00b7 Launchpad LEDs on${access.sysexEnabled ? '' : ' \u00b7 set it to Programmer mode'}`);
+}
+// nearest colour in the Launchpad palette (velocity = colour index)
+const LP_PAL = [[0, 0, 0, 0], [1, 28, 28, 28], [2, 124, 124, 124], [3, 255, 255, 255], [4, 255, 76, 76], [5, 255, 0, 0],
+  [6, 89, 0, 0], [9, 255, 84, 0], [8, 255, 189, 108], [12, 255, 255, 76], [13, 255, 255, 0], [14, 89, 89, 0], [15, 25, 25, 0],
+  [21, 0, 255, 0], [22, 0, 89, 0], [37, 0, 169, 255], [41, 76, 136, 255], [45, 0, 0, 255], [46, 0, 0, 89], [47, 0, 0, 25],
+  [49, 135, 76, 255], [52, 255, 76, 255], [53, 255, 0, 255], [54, 89, 0, 89], [55, 25, 0, 25], [56, 255, 76, 135], [57, 255, 0, 84], [58, 89, 0, 29]];
+function lpColor(el) {
+  const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g);
+  if (!m) return 0;
+  const [r, g, b, a = 1] = m.map(Number);
+  if (+a < .2) return 0;
+  let best = 0, bd = Infinity;
+  LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2; if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+function lpPaint() {
+  if (!lpOut) return;
+  try {
+    lpByHw.forEach((el, id) => {
+      const col = lpColor(el);
+      if (lpLeds.get(id) === col) return;
+      lpLeds.set(id, col);
+      lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, col]);
+    });
+  } catch (e) { lpOut = null; }
+}
+setInterval(lpPaint, 50);
+addEventListener('pagehide', () => { if (lpOut) try { lpByHw.forEach((el, id) => lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, 0])); } catch (e) {} });
+
 document.querySelectorAll('#hwPick button').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.hw)));
 applyLayout();
 
