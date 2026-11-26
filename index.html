@@ -140,10 +140,17 @@
   #ioDlg { position: fixed; inset: 0 0 0 auto; margin: 0; z-index: 30; box-sizing: border-box;
     width: var(--side-w); height: 100dvh; max-height: none; overflow-y: auto;
     border: 0; border-left: 1px solid #2c2c2c; padding: 0; border-radius: 0;
-    background: var(--screen); color: var(--screen-ink); font: 14px/1.4 var(--font); box-shadow: -12px 0 32px rgba(0, 0, 0, .35); }
+    background: var(--page); color: var(--screen-ink); font: 14px/1.4 var(--font); box-shadow: none; }
   html.io-open body { padding-right: calc(var(--side-w) + 16px); }
   html.io-open #ioBtn { background: var(--screen-ink); color: var(--screen); }
-  .io .hw { display: flex; gap: 6px; }
+  .io .hw { display: inline-flex; background: #1e1e1e; border: 1px solid #444; border-radius: 6px; padding: 2px; gap: 2px; }
+  .io .hw button { border: 0; border-radius: 4px; padding: 4px 12px; background: transparent; color: var(--screen-dim); font: 600 13px/1.2 var(--font); letter-spacing: .02em; }
+  .io .hw button[aria-checked="true"] { background: var(--screen-ink); color: var(--screen); }
+  .io details { margin: 14px 0 6px; }
+  .io summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 6px; }
+  .io summary::-webkit-details-marker { display: none; }
+  .io summary::before { content: '\25B8'; color: var(--screen-dim); transition: transform .15s; }
+  .io details[open] summary::before { transform: rotate(90deg); }
   .io { padding: 16px 18px 20px; }
   .io header { display: flex; align-items: center; justify-content: space-between; }
   .io h2 { margin: 0; font-size: 17px; }
@@ -303,8 +310,10 @@
       <label class="row">Send to <select id="ioLpOut"></select></label>
       <p class="note" id="ioLpDiag"></p>
       <div class="btns"><button type="button" id="ioLpTest">Test LEDs</button><button type="button" id="ioLpProg">Switch to Programmer mode</button></div>
-      <h4>Track outputs <span class="note">(channel = track number)</span></h4>
-      <div id="ioOuts" class="list"></div>
+      <details id="ioOutsBox">
+        <summary>Track outputs <span class="note">(channel = track number)</span></summary>
+        <div id="ioOuts" class="list"></div>
+      </details>
       <h4>Clock</h4>
       <label class="row check"><input type="checkbox" id="ioClockOut"> Send MIDI clock</label>
       <label class="row check"><input type="checkbox" id="ioClockIn"> Follow incoming MIDI clock</label>
@@ -323,7 +332,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.33'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.34'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3027,6 +3036,7 @@ function ioLpDiag() {
   $io('ioLpTest').disabled = !lpOut;
   $io('ioLpProg').disabled = !lpOut || !sysex;
 }
+startMidi(); // MIDI is on from the start (Chrome may ask once for permission)
 ['appVer', 'appVer2'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = APP_VERSION; });
 // the gear opens / closes the settings sidebar (not modal: the grid keeps working while it's open)
 function ioOpen(on) {
