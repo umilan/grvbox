@@ -184,7 +184,7 @@
     touch-action: none;
     transition: background-color .05s, color .05s;
   }
-  .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; position: relative; z-index: 1; }
+  .btn:focus, .btn:focus-visible { outline: none; } /* no focus rings on the grid */
   .btn.fn .small, .btn .small { display: block; margin-top: .35em; font-size: .8em; opacity: .75; }
   /* pad tones */
   .btn.pad.light { background: var(--key-light); color: var(--key-light-ink, var(--sel-ink)); }
@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.27'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.28'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
