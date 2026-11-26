@@ -231,6 +231,7 @@
 
 <script>
 /* ============================== DATA ============================== */
+const APP_VERSION = 'v1.0'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -2454,7 +2455,7 @@ function renderScreen() {
   if (mods.clear) sub = 'CLEAR · tap a clip to delete it, or an automated fader / effect (•)';
   if (settings) sub = `Click settings · swing ${swingPct()}% · hold CLICK or pick a section to leave`;
   document.getElementById('scrSub').textContent = message || sub;
-  document.getElementById('scrRight2').textContent = `Oct ${S.oct}` + (S.transpose ? ` · ${S.transpose > 0 ? '+' : ''}${S.transpose}` : '');
+  document.getElementById('scrRight2').textContent = `Oct ${S.oct}` + (S.transpose ? ` · ${S.transpose > 0 ? '+' : ''}${S.transpose}` : '') + ` · ${APP_VERSION}`;
 }
 function render() { renderPads(); renderTracks(); renderModes(); renderScreen(); syncFnKeys(); }
 
