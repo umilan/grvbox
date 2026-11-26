@@ -361,7 +361,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.59'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.60'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1398,6 +1398,8 @@ function momentaryKey(b, action) {
 /* ---------- CLEAR / DUP: hold them and tap a pad ---------- */
 const mods = { clear: false, dup: false };
 let clipboard = null; // { clip, from: [track, slot] } after DUP + tap on a clip
+// a latched CLEAR turns off after one use: padUp runs this once the cleared pad is released
+let pendingUnlatch = null;
 function modifierKey(b, key, label) {
   b.textContent = `${b.textContent}\n${label}`; // keep the row letter above the name
   fnKeys[label] = b;
@@ -1405,13 +1407,15 @@ function modifierKey(b, key, label) {
   // holding it keeps it on only while held. DUP is hold-only.
   const latch = key === 'clear';
   let isDown = false, used = false, rename = false, latched = false, wasLatched = false, t0 = 0;
+  const unlatch = () => { latched = false; mods[key] = false; b.setAttribute('aria-pressed', 'false'); render(); };
   if (latch) b.setAttribute('aria-pressed', 'false');
   pressable(b, () => {
     isDown = true; b.classList.add('down');
     rename = secondTap(b);
     if (rename) return;
     t0 = performance.now(); wasLatched = latched;
-    mods[key] = true; used = false; b._markUsed = () => { used = true; };
+    mods[key] = true; used = false;
+    b._markUsed = () => { used = true; if (latch && latched && !isDown) pendingUnlatch = unlatch; };
     renderScreen();
   }, () => {
     if (!isDown) return;
@@ -2029,12 +2033,12 @@ function toggleSavePick() {
   openProjects('save');
   say('Pick a slot to save into \u00b7 SAVE again cancels');
 }
-setInterval(() => { // SAVE blinks while it waits for a slot; CLEAR blinks the same way while it's on
+function blinkKeys() { // SAVE blinks while it waits for a slot; CLEAR blinks the same way while it's on
   [[fnKeys.SAVE, projPage === 'save'], [fnKeys.CLEAR, mods.clear]].forEach(([b, on]) => {
-    if (on) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+    if (on) b.setAttribute('aria-pressed', String(selBlink));
     else if (b.getAttribute('aria-pressed') === 'true') b.setAttribute('aria-pressed', 'false');
   });
-}, 350);
+}
 function quickSave(asNew) {
   let slot = !asNew && currentProj >= 0 ? currentProj : -1;
   if (slot < 0) for (let i = 0; i < PROJ_SLOTS; i++) if (!projects[i]) { slot = i; break; }
@@ -2137,11 +2141,14 @@ function xyDesc(r, c) {
 // blink phase for anything that is both selected and has a state of its own (edited effect, selected step,
 // edited clip, picked note): it alternates between white and its state colour
 let selBlink = false;
-setInterval(() => {
-  if (xyPad || settings || appSettings || projPage || midiPage) return;
+// indicator blinking runs at twice the tempo: two flashes per beat (on for a 1/16, off for a 1/16)
+function blinkLoop() {
   selBlink = !selBlink;
-  renderPads();
-}, 350);
+  if (!(xyPad || settings || appSettings || projPage || midiPage)) renderPads();
+  blinkKeys();
+  setTimeout(blinkLoop, 60000 / S.bpm / 4);
+}
+setTimeout(blinkLoop, 0); // starts once the page has loaded
 function padDesc(r, c) {
   if (activeMode !== 0 || !page2 || settings || appSettings || projPage || midiPage) { xyPad = false; xyPick = null; }
   if (midiPage) return midiDesc(r, c);
@@ -2270,6 +2277,7 @@ function padDown(r, c) {
   audio();
   const id = r * 8 + c, d = padDesc(r, c);
   if (d.tone === 'off' || d.tone === 'gap') return;
+  if (mods.clear) fnKeys.CLEAR._markUsed?.(); // any pad tapped with CLEAR on counts as using it
   const tr = S.tracks[curTrack];
   const info = { r, c };
   held.set(id, info);
@@ -2543,6 +2551,7 @@ function padDown(r, c) {
 
 function padUp(r, c) {
   const id = r * 8 + c, info = held.get(id);
+  if (pendingUnlatch) { const f = pendingUnlatch; pendingUnlatch = null; setTimeout(f, 0); }
   if (!info) return;
   held.delete(id);
   pads[r][c].classList.remove('down');
