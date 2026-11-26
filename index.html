@@ -361,7 +361,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.58'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.59'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2485,7 +2485,8 @@ function padDown(r, c) {
         }
         curTrack = c;
         renderTracks();
-        info.onTap = () => clipTap(c, r); // (track, slot)
+        // in step edit a tap only picks the clip to edit (never stops or launches it); on the CLIPS page it launches / stops
+        info.onTap = () => page2 ? selectClipToEdit(c, r) : clipTap(c, r); // (track, slot)
         info.hold = setTimeout(() => { // hold a clip: open it in the step editor (CLEAR + tap deletes)
           info.held = true;
           const t = S.tracks[c];
@@ -2735,6 +2736,20 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { if (e.code === 'Space' && !(inDialog(e))) { e.preventDefault(); e.stopPropagation(); } }, true);
 window.addEventListener('blur', () => [...keysDown.keys()].forEach(keyNoteUp));
 
+// step edit: tap a clip in the preview rows = edit it. The editor shows a track's current clip, so a different
+// clip becomes the current one (it plays from the next step if the track is playing); nothing is stopped.
+function selectClipToEdit(ti, slot) {
+  const t = S.tracks[ti];
+  if (!t.clips[slot]) { commit(); t.clips[slot] = { notes: [] }; } // empty slot: a new empty clip (no recording)
+  if (t.queued === slot) t.queued = null;
+  if (t.active !== slot) { // a playing track keeps playing (now this clip); a silent track stays silent
+    const wasPlaying = t.active >= 0 && !t.stopped && !!t.clips[t.active];
+    t.active = slot; t.stopped = !wasPlaying;
+  }
+  curTrack = ti; t.sel = -1;
+  say(`${instName(t)} ${slot + 1} · editing`);
+  render();
+}
 function clipTap(r, c) {
   const t = S.tracks[r];
   if (!t.clips[c]) { // empty slot: new clip, start recording into it
