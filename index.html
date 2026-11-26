@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.6'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.7'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -1911,7 +1911,7 @@ function padDesc(r, c) {
       // the value sits on the fader's top lit cell
       const dot = activeAuto(c).some(a => a.k === 'vol') ? ' •' : '';
       // faders of silent tracks are dimmed: not soloed while anything is soloed, otherwise muted
-      return { label: r === 5 - t.vol ? `${volPct(t)}${dot}` : '', tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
+      return { label: r === 5 - t.vol ? `VOL ${volPct(t)}${dot}` : '', tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
     }
     case 2: { // CLIP/SEQ
       if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
