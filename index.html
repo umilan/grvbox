@@ -375,7 +375,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.73'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.74'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1414,6 +1414,34 @@ function momentaryKey(b, action) {
 const mods = { clear: false, dup: false };
 let clipboard = null; // { clip, from: [track, slot] } after DUP + tap on a clip
 // the slot a copy was placed in shows the success colour for a moment
+// DUP in the step editor: tap a step to copy its notes (and automation), then tap or swipe over steps to paste
+function stepDup(tr, s, info) {
+  const cl0 = tr.clips[tr.active];
+  if (s >= clipLen(cl0)) return say('Past the clip end');
+  if (!clipboard) {
+    fnKeys.DUP._markUsed?.(false);
+    const notes = cl0 ? cl0.notes.filter(n => n.s === s) : [], auto = cl0 ? (cl0.auto || []).filter(a => a.s === s) : [];
+    if (!notes.length && !auto.length) return say('Nothing to copy in that step');
+    clipboard = { kind: 'step', notes: JSON.parse(JSON.stringify(notes)), auto: JSON.parse(JSON.stringify(auto)), from: [curTrack, tr.active, s] };
+    return say(`Step ${s + 1} copied · tap or swipe over steps to paste it`);
+  }
+  const [ft, fa, fs] = clipboard.from;
+  if (ft === curTrack && fa === tr.active && fs === s) { if (!pasting) { clipboard = null; say('Copy cancelled'); } return; }
+  if (!pasting) commit();
+  ensureClip(tr);
+  const cl = tr.clips[tr.active];
+  cl.notes = cl.notes.filter(n => n.s !== s).concat(clipboard.notes.map(n => ({ ...n, s })));
+  cl.auto = (cl.auto || []).filter(a => a.s !== s).concat(clipboard.auto.map(a => ({ ...a, s })));
+  pasting = true; fnKeys.DUP._markUsed?.(false);
+  flashPasted(pads[info.r][info.c]);
+}
+// a paste gesture (tap or swipe) is under way; when it ends the copy is used up and a latched DUP turns off
+let pasting = false;
+function pasteGestureEnd() {
+  if (!pasting) return;
+  pasting = false; clipboard = null;
+  if (mods.dup && fnKeys.DUP._unlatch) fnKeys.DUP._unlatch(); else render();
+}
 function flashPasted(el) {
   if (!el) return;
   el.classList.add('pasted'); clearTimeout(el._pasteT);
@@ -2284,7 +2312,7 @@ function padDesc(r, c) {
         if (r === 7) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
         if (r === 6) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
         const t = S.tracks[c], cl = t.clips[r], clab = `${instName(t)} ${r + 1}`; // e.g. KICK 1
-        if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? clab : '', tone: selBlink ? 'copied' : 'clipoff' }; // copied: blinks green
+        if (clipboard && clipboard.kind === 'clip' && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? clab : '', tone: selBlink ? 'copied' : 'clipoff' }; // copied: blinks green
         if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'clipempty' };
         const isActive = t.active === r;
         if (t.queued === r || (isActive && t.queued === 'stop')) return { label: clab, tone: 'queued' };
@@ -2303,6 +2331,8 @@ function padDesc(r, c) {
         const auto = cl && (cl.auto || []).some(a => a.s === s); // • = FX automation on this step
         const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s + 1}`) + (auto ? ' •' : ''); // step numbers run through the whole clip (1 … 32)
         const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s ? 'playhead' : notes.length || auto ? 'stepon' : 'step';
+        if (clipboard && clipboard.kind === 'step' && clipboard.from[0] === curTrack && clipboard.from[1] === tr.active && clipboard.from[2] === s)
+          return { label: lab, tone: selBlink ? 'copied' : state }; // the copied step blinks green
         return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
       }
       const n = pianoNote(r - L.kbStart, c, L.pairs, L.base); // one-octave keyboard at the bottom
@@ -2520,17 +2550,16 @@ function padDown(r, c) {
         if (mods.dup && !clipboard) { // DUP + tap a clip: copy it (it blinks green until you place it)
           fnKeys.DUP._markUsed?.(false);
           if (!tt.clips[r]) { say('Nothing to copy in that slot'); break; }
-          clipboard = { clip: JSON.parse(JSON.stringify(tt.clips[r])), from: [c, r] };
-          say('Clip copied · tap a slot to place it');
+          clipboard = { kind: 'clip', clip: JSON.parse(JSON.stringify(tt.clips[r])), from: [c, r] };
+          say('Clip copied · tap or swipe over slots to place it');
           break;
         }
-        if (clipboard) { // waiting paste: tap a slot to place the copy there
+        if (clipboard && clipboard.kind === 'clip') { // waiting paste: tap (or swipe over) slots to place copies
           const [fc, fr] = clipboard.from;
-          if (fc === c && fr === r) { clipboard = null; say('Copy cancelled'); break; }
-          commit();
-          tt.clips[r] = clipboard.clip;
-          clipboard = null;
-          fnKeys.DUP._markUsed?.(); // a latched DUP turns off when this tap ends
+          if (fc === c && fr === r) { if (!pasting) { clipboard = null; say('Copy cancelled'); } break; }
+          if (!pasting) commit(); // one UNDO for the whole swipe
+          tt.clips[r] = JSON.parse(JSON.stringify(clipboard.clip));
+          pasting = true; fnKeys.DUP._markUsed?.(false);
           flashPasted(pads[info.r][info.c]);
           say(`Clip placed in track ${labelOf(trackButtons[c])}, slot ${r + 1}`);
           break;
@@ -2554,6 +2583,7 @@ function padDown(r, c) {
         loopEditDown(tr, r, c, info);
       } else if (r < stepLayout(tr.clips[tr.active]).kbStart) {
         const s = (r - 2) * 8 + c;
+        if (mods.dup || (clipboard && clipboard.kind === 'step')) { stepDup(tr, s, info); break; } // DUP: copy a step, paint it onto others
         // hold a step pad = the clip ends there (works past the current end too)
         info.hold = setTimeout(() => {
           info.held = true;
@@ -2599,6 +2629,7 @@ function padUp(r, c) {
   // a latched CLEAR turns off when the whole gesture ends: the last finger / mouse button leaves the grid
   // (a swipe across several clips counts as one use), or every Launchpad pad is released
   if (pendingUnlatch && !held.size && !drag.size) { const f = pendingUnlatch; pendingUnlatch = null; setTimeout(f, 0); }
+  if (pasting && !held.size && !drag.size) setTimeout(pasteGestureEnd, 0);
   if (!info) return;
   { // keep the pressed colour visible for at least 150 ms, so a quick tap still shows
     const el = pads[r][c], left = 150 - (performance.now() - (el._downAt || 0));
@@ -2625,6 +2656,7 @@ function slideOK(r, c) {
 // On/off state of a pad for painting swipes; null for pads that aren't simple switches (keys, sliders…)
 function onState(r, c) {
   if (projPage || settings) return null;
+  if (mods.dup || clipboard) return null; // DUP: every pad a swipe touches gets pasted
   if (appSettings) { const p = PREFS[r * 8 + c]; return p ? (p.value !== undefined ? prefs[p.key] === p.value : !!prefs[p.key]) : null; }
   if (midiPage) {
     if (midiOutPage) return null;
@@ -2927,8 +2959,8 @@ function renderScreen() {
   const bank = `${projBank * 64 + 1}\u2013${projBank * 64 + 64} (\u2191\u2193)`;
   if (projPage === 'load') sub = `Songs ${bank} (${projStore.where}) · tap a saved song to load it · CLEAR+tap = delete`;
   if (projPage === 'save') sub = `Save project ${bank} (${projStore.where}) · tap a slot (replaces it) · CLEAR+tap = delete`;
-  if (clipboard) sub = 'Clip copied · tap a slot on CLIPS to place it · press DUP to cancel';
-  if (mods.dup) sub = 'DUP · tap a clip to copy it';
+  if (clipboard) sub = clipboard.kind === 'step' ? 'Step copied · tap or swipe over steps to paste · DUP cancels' : 'Clip copied · tap or swipe over slots to place it · DUP cancels';
+  if (mods.dup && !clipboard) sub = 'DUP · tap a clip (or a step in the editor) to copy it';
   if (mods.clear) sub = 'CLEAR · tap a clip to delete it, or an automated fader / effect (•)';
   if (settings) sub = `Click settings · swing ${swingPct()}% · hold CLICK or pick a section to leave`;
   document.getElementById('scrSub').textContent = message || sub;
