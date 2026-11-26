@@ -329,7 +329,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.39'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.40'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -432,7 +432,7 @@ function newTrack(preset, fxs = []) {
   const fxOn = FX.map((f, i) => fxs.includes(i));
   return { preset, L: [...PRESETS[preset].L], fxOn, fxP: FX.map(f => [...f.d]), fxFocus: fxs[0] || 1, clips: Array(8).fill(null),
            active: -1, stopped: false, queued: null, sel: -1, last: 48,
-           split: false, kit: {}, kitSel: 0, mute: false, solo: false, vol: 5,
+           split: false, kit: {}, kitSel: 0, mute: false, solo: false, vol: 3,
            input: 'kbd', inMute: false, clipMute: false, autoArm: true, loop: -1, midiOut: null }; // midiOut = output device name // loop = audio loop slot or -1 // which input plays this track when it's selected: 'kbd', 'none' or a MIDI input id // split: separate sound per note (kit[pitch class])
 }
 const S = {
@@ -457,12 +457,12 @@ S.tracks[7].lp = { v: 2, speed: 3, start: 0, frac: 3, pitch: 3 };
 const FXI = n => FX.findIndex(f => f.n === n);
 // spec: { bpm, swing, tracks: [{ p: preset, fx: { DELAY: [mix, time, fb, tone] \u2026 }, notes: [[step, note, len]], len, vol, loop, lp }] }
 function makeSong(spec) {
-  const st = { v: 1, bpm: spec.bpm, swing: spec.swing || 0, clickSnd: 0, clickVel: 5, oct: 2, transpose: 0, tracks: [] };
+  const st = { v: 2, bpm: spec.bpm, swing: spec.swing || 0, clickSnd: 0, clickVel: 5, oct: 2, transpose: 0, tracks: [] };
   spec.tracks.forEach(d => {
     const fx = Object.keys(d.fx || {}).map(FXI), t = newTrack(d.p, fx);
     Object.entries(d.fx || {}).forEach(([n, v]) => { if (v) t.fxP[FXI(n)] = v; });
     if (d.notes) { t.clips[0] = { notes: d.notes.map(([s, n, len = 1]) => ({ s, n, len })) }; if (d.len) t.clips[0].len = d.len; t.active = 0; }
-    if (d.vol !== undefined) t.vol = d.vol;
+    if (d.vol !== undefined) t.vol = [0, 0, 1, 2, 2, 3][d.vol]; // demo levels are written on the old 0–5 scale (5 = 100 %)
     if (d.loop !== undefined) { t.loop = d.loop; t.lp = { v: 2, speed: 3, start: 0, frac: 6, pitch: 3, ...d.lp }; }
     st.tracks.push({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips, active: t.active,
       stopped: false, split: false, kit: {}, kitName: undefined, kitSel: 0, mute: false, solo: false, vol: t.vol, last: 48, loop: t.loop });
@@ -995,7 +995,11 @@ function makeFx(type) {
 // Chain order for the effects that are on: DRIVE → CRUSH → FILTER → CHORUS → TREM → DELAY → REVERB
 const FX_ORDER = [3, 7, 4, 5, 6, 1, 2];
 // Mute / solo: a track sounds when it isn't muted and either nothing is soloed or it is soloed
-const VOL = [.1, .3, .5, .7, .85, 1]; // MIX fader levels (6 rows)
+const VOL = [.25, .5, .75, 1, 1.25, 1.5]; // MIX fader levels (6 rows): 100 % is the default, 150 % at the top
+const VOL_DEFAULT = 3;
+// songs saved before v1.40 used levels .1 .3 .5 .7 .85 1 (top = 100 %): map them to the nearest new level
+const VOL_OLD = [.1, .3, .5, .7, .85, 1];
+const volFromOld = i => { const g = VOL_OLD[i] ?? 1; let best = 0; VOL.forEach((v, j) => { if (Math.abs(v - g) < Math.abs(VOL[best] - g)) best = j; }); return best; };
 const volPct = t => Math.round(VOL[t.vol] * 100);
 // FX / SND sliders (8 steps, 0–7): the value as a percentage, shown with the name on the slider's top lit pad like VOL
 const sliderPct = v => Math.round((v + 1) * 100 / 8);
@@ -1737,12 +1741,16 @@ let projStore = {
 })();
 function projectState() {
   return {
-    v: 1, bpm: S.bpm, swing: S.swing, clickSnd: S.clickSnd, clickVel: S.clickVel, oct: S.oct, transpose: S.transpose,
+    v: 2, bpm: S.bpm, swing: S.swing, clickSnd: S.clickSnd, clickVel: S.clickVel, oct: S.oct, transpose: S.transpose,
     tracks: S.tracks.map(t => ({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips,
       active: t.active, stopped: t.stopped, split: t.split, kit: t.kit, kitName: t.kitName, kitSel: t.kitSel, mute: t.mute, solo: t.solo, vol: t.vol, last: t.last, loop: t.loop })),
   };
 }
 function applyProject(p) {
+  if (!p.v || p.v < 2) p.tracks.forEach(d => { // older volume scale
+    if (d.vol !== undefined) d.vol = volFromOld(d.vol);
+    (d.clips || []).forEach(cl => cl && (cl.auto || []).forEach(a => { if (a.k === 'vol') a.v = volFromOld(a.v); }));
+  });
   ['bpm', 'swing', 'clickSnd', 'clickVel', 'oct', 'transpose'].forEach(k => { if (p[k] !== undefined) S[k] = p[k]; });
   S.tracks.forEach(stopLoop); // a loop from the song before must not keep playing
   p.tracks.forEach((d, i) => { if (S.tracks[i]) Object.assign(S.tracks[i], d, { queued: null, sel: -1 }); });
