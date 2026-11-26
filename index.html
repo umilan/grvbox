@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.22'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.23'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1916,6 +1916,13 @@ function xyDesc(r, c) {
   const value = r === row && c === col ? `${col + 1}·${8 - row}` : '';
   return { label: [axis, value].filter(Boolean).join('\n'), tone };
 }
+// blink phase for the effect being edited on the FX edit page (white ↔ its on/off colour)
+let fxBlink = false;
+setInterval(() => {
+  if (activeMode !== 0 || !page2 || xyPad || settings || appSettings || projPage || midiPage) return;
+  fxBlink = !fxBlink;
+  renderPads();
+}, 350);
 function padDesc(r, c) {
   if (activeMode !== 0 || !page2 || settings || appSettings || projPage || midiPage) { xyPad = false; xyPick = null; }
   if (midiPage) return midiDesc(r, c);
@@ -1981,9 +1988,10 @@ function padDesc(r, c) {
       if (c === 7) { // right column: pick which effect these sliders edit (same order as page 1)
         if (r === 0) return { tone: 'off' };
         const fx = fxAt(r);
-        // edited effect: white when on, grey with OFF when off; the others: light = on, dark = off
-        if (fx === tr.fxFocus) return { label: FX[fx].n + (tr.fxOn[fx] ? '' : '\nOFF'), tone: tr.fxOn[fx] ? 'sel' : 'dark' };
-        return { label: FX[fx].n, tone: tr.fxOn[fx] ? 'light' : 'empty' };
+        // light = on, dark = off; the edited effect blinks between white and its on/off colour
+        const state = tr.fxOn[fx] ? 'light' : 'empty';
+        if (fx === tr.fxFocus) return { label: FX[fx].n + (tr.fxOn[fx] ? '' : '\nOFF'), tone: fxBlink ? 'sel' : state };
+        return { label: FX[fx].n, tone: state };
       }
       const p = FX[tr.fxFocus].p, P = tr.fxP[tr.fxFocus];
       if (c >= p.length) return { tone: 'off' };
