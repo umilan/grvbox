@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.2'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.3'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -362,6 +362,9 @@ S.tracks[1].clips[0] = { notes: [2, 6, 10, 14].map(s => ({ s, n: 48, len: 1 })) 
 S.tracks[2].clips[0] = { notes: [[0, 36], [3, 36], [6, 39], [8, 36], [11, 43], [14, 41]].map(([s, n]) => ({ s, n, len: 1 })) };
 S.tracks.forEach((t, i) => { if (i < 3) t.active = 0; });
 S.tracks[7].loop = 4; // track 8 plays the WEIRD PERC audio loop by default
+S.tracks[7].clips[0] = { notes: [{ s: 0, n: 48, len: 1 }] }; // one launch step: restart its first bar every bar
+S.tracks[7].active = 0;
+S.tracks[7].lp = { v: 2, speed: 3, start: 0, frac: 3, pitch: 3 };
 
 let curTrack = 0;     // T1–T4
 let activeMode = 3;   // 0 FX/EDIT, 1 INST/SND, 2 CLIP/SEQ, 3 KEY/FRET
@@ -1619,13 +1622,15 @@ function lpOf(tr) {
 const isLoopTrack = tr => tr.loop >= 0 && !!loopSlots[tr.loop];
 const lpVal = (tr, k) => LP_OPTS[k].v[lpOf(tr)[k]];
 function playLoopStep(tr, i, st, t) {
+  // the loop only runs from launch steps you can see in the sequencer: no clip, stopped, muted or no steps = silent
   const L = tr.loop >= 0 && loopSlots[tr.loop];
-  if (!L || tr.clipMute) return;
-  if (!L.buf) { ensureLoopBuf(tr.loop); return; } // still loading: starts on a later bar
-  const span = loopSpan(tr, L);
-  if (st % span === 0) return startLoop(tr, i, t);
-  // not running yet (e.g. its audio just finished loading): join on the next bar, at the right place in the loop
-  if (!tr._loopSrc && st % 16 === 0) startLoop(tr, i, t, (st % span) / span);
+  if (!L) return;
+  if (!L.buf) ensureLoopBuf(tr.loop); // load early so the first launch step can play it
+  const cl = tr.clips[tr.active];
+  if (tr._loopSrc && (tr.stopped || tr.clipMute || !cl || !cl.notes.length)) {
+    try { tr._loopSrc.stop(t); } catch (e) {}
+    tr._loopSrc = null;
+  }
 }
 // steps one pass of the loop region takes: its share of the loop's bars, divided by the speed
 function loopSpan(tr, L) {
@@ -1633,7 +1638,7 @@ function loopSpan(tr, L) {
   return Math.max(1, Math.round(16 * L.bars * frac / lpVal(tr, 'speed')));
 }
 // start the loop region now (or at time t), cutting the previous pass
-function startLoop(tr, i, t, phase = 0) {
+function startLoop(tr, i, t) {
   const L = tr.loop >= 0 && loopSlots[tr.loop];
   if (!L) return;
   if (!L.buf) { ensureLoopBuf(tr.loop); return; }
@@ -1647,7 +1652,12 @@ function startLoop(tr, i, t, phase = 0) {
   src.buffer = buf;
   src.playbackRate.value = region / (span * stepDur()); // fit the region to its steps at this tempo
   src.connect(bus[i].input);
-  src.start(t, L.buf.duration * start * ratio + region * phase, region * (1 - phase));
+  const off = L.buf.duration * start * ratio;
+  if (playing) { // from the sequencer: keep looping the region in time until the next launch step or stop
+    src.loop = true; src.loopStart = off; src.loopEnd = off + region;
+    src.start(t, off);
+  } else src.start(t, off, region); // played from the keys while stopped: one pass
+
   tr._loopSrc = src;
   flashTrack(i, t);
 }
