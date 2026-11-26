@@ -1,0 +1,2471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Button Grid</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: a small status screen above a 9×9 square grid — top row of purple function keys, 8×8 pad,
+     right column of 4 pink track keys (T1–T4) + 4 yellow section keys (press the active one again for page 2) */
+  :root {
+    color-scheme: dark;
+    --page: #1e1e1e;
+    --screen: #121212;
+    --screen-ink: #e9e4d8;
+    --screen-dim: #8a8577;
+    --pad: #5c5c5c;
+    --pad-ink: #f1f1f1;
+    --pad-down: #f9e58d;
+    --pad-down-ink: #2c2a10;
+    --press: #f9e58d;      /* pressed state, every button */
+    --press-ink: #2c2a10;
+    --key-light: #cccccc;
+    --key-dark: #a3a3a3;
+    --off-edge: #2b2b2b;
+    --empty: #363636;
+    --empty-cur: #4d4d4d;
+    --mute-off: #b9d4f5;
+    --mute-off-ink: #0d2a52;
+    --mute-on: #1f6fe5;
+    --mute-on-ink: #ffffff;
+    --solo-off: #f7ecb5;
+    --solo-off-ink: #4a3d00;
+    --solo-on: #f2c200;
+    --solo-on-ink: #2a2200;
+    --note-own: rgba(215, 123, 209, .75);   /* selected track's notes on KEYS */
+    --note-other: rgba(31, 111, 229, .5);   /* other tracks' notes on KEYS */
+    --arm-off: #f4b9b5;
+    --arm-off-ink: #5a0f0b;
+    --all-dim: #34466e;
+    --all-dim-ink: #c9d8f5;
+    --copied: #f08a24;
+    --copied-ink: #2a1400;
+    --dim: #333333;
+    --dim-ink: #7a7a7a;
+    --sel: #ffffff;        /* active / selected */
+    --sel-ink: #111111;
+    --hot: #c4176b;
+    --hot-ink: #ffe6f1;
+    --rec: #e8221b;
+    --rec-ink: #ffffff;
+    --rec-dim: #4a0f0d;
+    --rec-dim-ink: #ffb3ae;
+    --queued: #f6b3d1;
+    --queued-ink: #5c0e3a;
+    --fn: #2c042b;
+    --fn-ink: #f1e7f0;
+    --fn-down: #7a2a76;
+    --fn-on: #d77bd1;
+    --fn-on-ink: #2c042b;
+    --nav: #2c042b;
+    --nav-ink: #f1e7f0;
+    --nav-down: #7a2a76;
+    --track: #2c042b;
+    --track-ink: #f1e7f0;
+    --track-on: #d77bd1;
+    --track-on-ink: #2c042b;
+    --mode: #2c042b;
+    --mode-ink: #f1e7f0;
+    --mode-on: #d77bd1;
+    --mode-on-ink: #2c042b;
+    --mode-bright: #f6c9f2;
+    --pulse: rgba(255, 255, 255, .13);
+    --pulse-sel: rgba(44, 4, 43, .28);
+    --mode-bright-ink: #2c042b;
+    --focus: #8fb2ff;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--page);
+    color: var(--fn-ink);
+    font-family: var(--font);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+  }
+  .unit {
+    --size: min(100%, calc(100dvh - 32px - 52px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    width: var(--size);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .screen {
+    background: var(--screen);
+    color: var(--screen-ink);
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    font-size: clamp(11px, 1.6vmin, 14px);
+    font-variant-numeric: tabular-nums;
+    min-height: 42px;
+    box-sizing: border-box;
+  }
+  .screen .main { font-weight: 600; letter-spacing: .03em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .screen .sub { color: var(--screen-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .screen .right { text-align: right; white-space: nowrap; }
+  .screen .rec { color: var(--rec-dim-ink); font-weight: 600; }
+  .recflash .screen .rec { color: var(--rec); }
+  .grid {
+    width: 100%;
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: clamp(3px, 0.7vmin, 8px);
+  }
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    padding: 2px;
+    min-width: 0;
+    background: var(--pad);
+    color: var(--pad-ink);
+    font: 400 clamp(7px, 1.35vmin, 15px)/1.2 var(--font);
+    letter-spacing: .02em;
+    text-align: center;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    transition: background-color .05s, color .05s;
+  }
+  .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; position: relative; z-index: 1; }
+  .btn.fn .small, .btn .small { display: block; margin-top: .35em; font-size: .8em; opacity: .75; }
+  /* pad tones */
+  .btn.pad.light { background: var(--key-light); color: var(--sel-ink); }
+  .btn.pad.dark { background: var(--key-dark); color: var(--sel-ink); }
+  .btn.pad.muteoff { background: var(--mute-off); color: var(--mute-off-ink); }
+  .btn.pad.muteon { background: var(--mute-on); color: var(--mute-on-ink); font-weight: 600; }
+  .btn.pad.solooff { background: var(--solo-off); color: var(--solo-off-ink); }
+  .btn.pad.soloon { background: var(--solo-on); color: var(--solo-on-ink); font-weight: 600; }
+  .btn.pad.copied { background: var(--copied); color: var(--copied-ink); font-weight: 600; }
+  .btn.pad { transition: background-color .05s, color .05s, box-shadow .3s ease-out; }
+  .btn.pad.ohit { box-shadow: inset 0 0 0 999px var(--note-other); transition: none; }
+  .btn.pad.nhit { box-shadow: inset 0 0 0 999px var(--note-own); transition: none; }
+  .btn.pad.armon { background: var(--rec); color: var(--rec-ink); font-weight: 600; }
+  .btn.pad.armoff { background: var(--arm-off); color: var(--arm-off-ink); }
+  .btn.pad.faded { opacity: .5; } /* MUTE row while any track is soloed */
+  .btn.pad.alldim { background: var(--all-dim); color: var(--all-dim-ink); }
+  .btn.pad.dim { background: var(--dim); color: var(--dim-ink); }
+  .btn.pad.empty { background: var(--empty); }
+  .btn.pad.emptycur { background: var(--empty-cur); }
+  .btn.pad.sel { background: var(--sel); color: var(--sel-ink); font-weight: 500; }
+  .btn.pad.hot { background: var(--hot); color: var(--hot-ink); font-weight: 500; }
+  .btn.pad.rec { background: var(--rec); color: var(--rec-ink); font-weight: 600; }
+  .btn.pad.recwait { background: var(--rec-dim); color: var(--rec-dim-ink); font-weight: 600; }
+  .beatflash .btn.pad.recwait { background: var(--rec); color: var(--rec-ink); }
+  .btn.pad.queued { background: var(--empty); color: var(--queued); }
+  .beatflash .btn.pad.queued { background: var(--queued); color: var(--queued-ink); }
+  .btn.pad.gap { visibility: hidden; }
+  .btn.pad.off { background: transparent; box-shadow: inset 0 0 0 1px var(--off-edge); color: transparent; cursor: default; }
+  .btn.pad.down { background: var(--pad-down); color: var(--pad-down-ink); }
+  /* function keys */
+  .btn.fn { background: var(--fn); color: var(--fn-ink); }
+  .btn.fn.down, .btn.fn.beat { background: var(--fn-down); }
+  .btn.fn[aria-pressed="true"] { background: var(--fn-on); color: var(--fn-on-ink); font-weight: 500; }
+  .btn.fn.rec[aria-pressed="true"] { background: var(--rec); color: var(--rec-ink); }
+  .btn.fn.bright[aria-pressed="true"] { background: var(--mode-bright); color: var(--mode-bright-ink); }
+  .btn.fn.recplay { background: var(--rec-dim); color: var(--rec-dim-ink); }
+  .btn.fn.settings { box-shadow: inset 0 0 0 3px var(--mode-bright); }
+  .recflash .btn.fn.recplay { background: var(--rec); color: var(--rec-ink); }
+  .btn.track { background: var(--track); color: var(--track-ink); }
+  .btn.track[aria-checked="true"] { background: var(--track-on); color: var(--track-on-ink); font-weight: 500; }
+  /* note pulse: a faint light wash that fades out */
+  .btn.track { transition: background-color .05s, color .05s, box-shadow .3s ease-out; }
+  .btn.track.hit { box-shadow: inset 0 0 0 999px var(--pulse); transition: none; }
+  /* selected track: a darker wash that fades out slowly, so it reads on the light-purple button */
+  .btn.track[aria-checked="true"] { transition: background-color .05s, color .05s, box-shadow .7s ease-out; }
+  .btn.track[aria-checked="true"].hit { box-shadow: inset 0 0 0 999px var(--pulse-sel); transition: none; }
+  .btn.mode { background: var(--mode); color: var(--mode-ink); }
+  .btn.mode[aria-checked="true"] { background: var(--mode-on); color: var(--mode-on-ink); font-weight: 500; }
+  .btn.mode.bright[aria-checked="true"] { background: var(--mode-bright); color: var(--mode-bright-ink); }
+  .corner { visibility: hidden; }
+  .btn.nav { background: var(--nav); color: var(--nav-ink); font-size: clamp(11px, 2vmin, 20px); }
+
+  .btn.fn, .btn.track, .btn.mode, .btn.nav { border-radius: 50%; padding: 0 8%; overflow-wrap: normal; }
+  .btn.fn.spare { border-radius: 50%; }
+  .btn.track .inst { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: .2em; }
+  .btn.fn.setbtn { font-size: clamp(6px, 1.1vmin, 13px); letter-spacing: 0; padding: 0; }
+  .btn.fn.setgrey:not([aria-pressed="true"]) { background: var(--pad); color: var(--pad-ink); }
+  .rename {
+    position: fixed; z-index: 20; box-sizing: border-box; margin: 0;
+    background: var(--screen); color: var(--screen-ink);
+    border: 2px solid var(--focus); border-radius: 0; padding: 2px 4px;
+    font: 500 clamp(9px, 1.5vmin, 15px)/1.2 var(--font); text-align: center; outline: none;
+  }
+  /* pressed = yellow on every button (last so it wins over on/selected states) */
+  .grid .btn.btn.down,
+  .grid .btn.track:active, .grid .btn.mode:active { background: var(--press); color: var(--press-ink); }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+
+<div class="unit">
+  <header class="screen" id="screen" aria-live="polite">
+    <div class="main" id="scrMain">T1 · KICK</div>
+    <div class="right" id="scrRight">120 BPM</div>
+    <div class="sub" id="scrSub">KEYS · Keys</div>
+    <div class="right sub" id="scrRight2">Oct 2</div>
+  </header>
+  <main class="grid" id="grid" aria-label="Groovebox"></main>
+</div>
+
+<script>
+/* ============================== DATA ============================== */
+const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
+const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
+
+// Sound parameters, each stored as a level 0–7 (one vertical slider each on INST/SND page 2)
+const SND_PARAMS = ['ATK', 'DEC', 'SUS', 'REL', 'CUT', 'RES', 'PNCH', 'VOL'];
+const MAP = {
+  a: l => [0, .005, .01, .03, .08, .2, .5, 1.2][l],
+  d: l => [.03, .06, .1, .18, .3, .5, .9, 1.6][l],
+  s: l => l / 7,
+  r: l => [.02, .05, .1, .2, .4, .8, 1.5, 3][l],
+  cut: l => 200 * Math.pow(80, l / 7),
+  res: l => [.5, 1, 2, 4, 6, 9, 13, 18][l],
+  punch: l => [0, 2, 5, 9, 14, 20, 28, 36][l],
+  vol: l => (l + 1) / 8,
+};
+
+// 24 presets: row 1 drums, row 2 basses, row 3 keys & leads
+const PRESETS = [
+  { n: 'KICK', w: 'sine', fixed: 52, pd: .08, L: [0, 4, 0, 1, 2, 1, 6, 7] },
+  { n: 'SNARE', w: 'triangle', fixed: 185, nz: .75, pd: .03, L: [0, 2, 0, 1, 6, 1, 3, 6] },
+  { n: 'CLAP', w: 'noise', ft: 'bandpass', L: [0, 2, 0, 2, 3, 3, 0, 7] },
+  { n: 'HAT', w: 'noise', ft: 'highpass', L: [0, 0, 0, 0, 6, 1, 0, 4] },
+  { n: 'OPEN\nHAT', w: 'noise', ft: 'highpass', L: [0, 4, 0, 2, 6, 1, 0, 4] },
+  { n: 'TOM', w: 'sine', fixed: 120, pd: .1, L: [0, 4, 0, 1, 4, 0, 3, 7] },
+  { n: 'RIM', w: 'triangle', fixed: 820, nz: .2, L: [0, 0, 0, 0, 6, 1, 1, 5] },
+  { n: 'COW\nBELL', w: 'square', fixed: 560, uni: 350, ft: 'bandpass', L: [0, 2, 0, 1, 5, 2, 0, 5] },
+  { n: 'SUB', w: 'sine', L: [0, 4, 6, 2, 3, 0, 1, 7] },
+  { n: 'ACID', w: 'sawtooth', fe: 3, L: [0, 2, 1, 1, 2, 6, 0, 6] },
+  { n: 'REESE', w: 'sawtooth', uni: 14, L: [0, 5, 6, 3, 3, 2, 0, 6] },
+  { n: 'PLUCK\nBASS', w: 'square', fe: 2, L: [0, 2, 0, 1, 2, 2, 0, 6] },
+  { n: 'FM\nBASS', w: 'triangle', pd: .03, L: [0, 3, 3, 1, 4, 1, 3, 7] },
+  { n: 'DIST\nBASS', w: 'sawtooth', nz: .1, L: [0, 3, 5, 1, 4, 1, 0, 6] },
+  { n: 'SQR\nBASS', w: 'square', uni: 6, fe: 1, L: [0, 3, 4, 1, 3, 3, 0, 6] },
+  { n: 'HOOVER', w: 'sawtooth', uni: 28, pd: .2, L: [1, 4, 6, 3, 5, 2, 2, 5] },
+  { n: 'LEAD', w: 'sawtooth', uni: 8, L: [0, 4, 5, 2, 5, 2, 0, 5] },
+  { n: 'PAD', w: 'sawtooth', uni: 14, L: [5, 6, 6, 6, 3, 1, 0, 5] },
+  { n: 'PLUCK', w: 'triangle', fe: 2, L: [0, 2, 0, 2, 5, 1, 0, 6] },
+  { n: 'BELL', w: 'sine', uni: 4, L: [0, 6, 0, 6, 7, 0, 0, 6] },
+  { n: 'ORGAN', w: 'square', L: [1, 2, 7, 1, 4, 0, 0, 4] },
+  { n: 'KEYS', w: 'triangle', L: [0, 5, 2, 3, 4, 1, 0, 6] },
+  { n: 'BRASS', w: 'sawtooth', fe: 2, L: [2, 4, 5, 2, 3, 2, 0, 5] },
+  { n: 'SWEEP', w: 'sawtooth', uni: 20, fe: 3, L: [4, 7, 4, 6, 2, 5, 0, 5] },
+];
+const pName = i => PRESETS[i].n.replace('\n', ' ');
+
+// One-octave drum kits (INST/SND row 4): each kit gives every note C…B its own drum sound.
+// Layout: C kick · C# rim · D snare · D# clap · E snare 2 · F low tom · F# hat · G mid tom ·
+//         G# short hat · A high tom · A# open hat · B cowbell. Kits differ by tweaked sound levels.
+const KIT_ROLES = ['kick', 'rim', 'snare', 'clap', 'snare2', 'tom', 'hat', 'tom', 'hat2', 'tom', 'ohat', 'cow'];
+const ROLE_PRESET = { kick: 0, rim: 6, snare: 1, snare2: 1, clap: 2, tom: 5, hat: 3, hat2: 3, ohat: 4, cow: 7 };
+const ROLE_BASE = { snare2: { 1: 3, 4: 7 }, hat2: { 1: 0, 7: 3 } };
+const KITS = [
+  { n: '808', kick: { 1: 6, 6: 5, 4: 2 }, snare: { 4: 5 }, hat: { 1: 0 }, tom: { 1: 5 } },
+  { n: '909', kick: { 1: 4, 6: 6, 4: 3 }, snare: { 4: 6 }, hat: { 4: 7 } },
+  { n: 'TECHNO', kick: { 1: 5, 6: 7, 4: 2 }, snare: { 4: 4, 1: 1 }, hat: { 1: 1, 4: 6 } },
+  { n: 'LOFI', all: { 4: 3 }, kick: { 1: 3 } },
+  { n: 'TRAP', kick: { 1: 7, 6: 4, 4: 2, 3: 4 }, snare: { 1: 1 }, hat: { 1: 0, 4: 7 } },
+  { n: 'ELECTRO', kick: { 1: 3, 6: 7 }, snare: { 4: 7 }, hat: { 4: 5 } },
+  { n: 'MINIMAL', kick: { 1: 2, 6: 5 }, snare: { 7: 4 }, hat: { 7: 3 } },
+  { n: 'HEAVY', kick: { 1: 5, 6: 7, 7: 7 }, snare: { 1: 4, 7: 7 }, tom: { 1: 6 } },
+];
+function buildKit(k) {
+  const kit = {};
+  KIT_ROLES.forEach((role, pc) => {
+    const preset = ROLE_PRESET[role], L = [...PRESETS[preset].L];
+    const group = role.replace(/2$/, '');
+    [k.all, ROLE_BASE[role], k[group]].forEach(o => o && Object.entries(o).forEach(([i, v]) => { L[i] = v; }));
+    kit[pc] = { preset, L };
+  });
+  return kit;
+}
+
+// One effect per track; parameters are levels 0–7 (vertical sliders on FX/EDIT page 2)
+const FX = [
+  { n: 'OFF', p: [], d: [] },
+  { n: 'DELAY', p: ['MIX', 'TIME', 'FDBK', 'TONE'], d: [3, 2, 3, 4] },
+  { n: 'REVERB', p: ['MIX', 'SIZE', 'DAMP'], d: [3, 4, 3] },
+  { n: 'DRIVE', p: ['MIX', 'AMT', 'TONE', 'LVL'], d: [7, 3, 5, 4] },
+  { n: 'FILTER', p: ['CUT', 'RES', 'RATE', 'DPTH'], d: [4, 3, 2, 0] },
+  { n: 'CHORUS', p: ['MIX', 'RATE', 'DPTH'], d: [4, 2, 3] },
+  { n: 'TREM', p: ['RATE', 'DPTH'], d: [3, 4] },
+  { n: 'CRUSH', p: ['MIX', 'BITS'], d: [7, 3] },
+];
+
+/* ============================== STATE ============================== */
+const STEPS = 16;      // a bar of 16ths (clip launches, click)
+const MAX_CLIP = 48;   // clips can be 1–48 steps long (← → on the CLIPS page)
+const clipLen = cl => (cl && cl.len) || STEPS;
+const wrap = (q, n) => ((q % n) + n) % n;
+// Step edit layout: the steps take 2, 4 or 6 rows (below the 2 preview rows)
+function stepLayout(cl) {
+  const len = clipLen(cl), rows = len <= 16 ? 2 : len <= 32 ? 4 : 6;
+  // steps from row 3; a one-octave keyboard on the bottom two rows while there's room (gap rows between are empty)
+  return { len, stepEnd: 2 + rows, kbStart: rows === 6 ? 8 : 6, pairs: rows === 6 ? 0 : 1, base: S.oct + 1 };
+}
+// Effects are combined: fxOn[i] switches effect i on, fxP[i] holds its settings, fxFocus is the one being edited
+function newTrack(preset, fxs = []) {
+  const fxOn = FX.map((f, i) => fxs.includes(i));
+  return { preset, L: [...PRESETS[preset].L], fxOn, fxP: FX.map(f => [...f.d]), fxFocus: fxs[0] || 1, clips: Array(8).fill(null),
+           active: -1, stopped: false, queued: null, sel: -1, last: 48,
+           split: false, kit: {}, kitSel: 0, mute: false, solo: false, vol: 5,
+           input: 'kbd', inMute: false, clipMute: false, autoArm: true, loop: -1, midiOut: null }; // midiOut = output device name // loop = audio loop slot or -1 // which input plays this track when it's selected: 'kbd', 'none' or a MIDI input id // split: separate sound per note (kit[pitch class])
+}
+const S = {
+  bpm: 120, click: false, rec: false, recStop: false, oct: 2, transpose: 0, // recStop: recording ends at the next bar
+  clickSnd: 0, clickVel: 5, swing: 0, // click settings: sound, velocity 0–7, swing 0–7
+  tracks: [newTrack(0), newTrack(3), newTrack(9, [1]), newTrack(17, [2]),
+           newTrack(1), newTrack(2), newTrack(16), newTrack(19)],
+};
+// Example clips so PLAY does something straight away
+S.tracks[0].clips[0] = { notes: [0, 4, 8, 12].map(s => ({ s, n: 48, len: 1 })) };
+S.tracks[1].clips[0] = { notes: [2, 6, 10, 14].map(s => ({ s, n: 48, len: 1 })) };
+S.tracks[2].clips[0] = { notes: [[0, 36], [3, 36], [6, 39], [8, 36], [11, 43], [14, 41]].map(([s, n]) => ({ s, n, len: 1 })) };
+S.tracks.forEach((t, i) => { if (i < 3) t.active = 0; });
+S.tracks[7].loop = 4; // track 8 plays the WEIRD PERC audio loop by default
+
+let curTrack = 0;     // T1–T4
+let activeMode = 3;   // 0 FX/EDIT, 1 INST/SND, 2 CLIP/SEQ, 3 KEY/FRET
+let page2 = false;    // pressing the active section key again
+let settings = false; // click settings page (hold CLICK)
+let appSettings = false; // SETTINGS page (top-right corner button)
+let projPage = false;    // projects page: 'load' (A) or 'save' (B)
+let xyPad = false;       // XY pad on FX page 2; switches off when you go to another page
+let midiPage = false;    // MIDI input page (MIDI button)
+
+/* ---------- MIDI inputs ----------
+   Each track picks its input on the MIDI page: NONE (bottom row), KBD = computer keyboard (row above),
+   or a connected MIDI device (rows above that). The selected track plays from its own input only. */
+let midiStatus = 'idle', midiInputs = [], midiOutputs = []; // inputs [{ id, name, slot }], outputs [{ id, name, port }]
+let midiOutPage = false; // MIDI page 2: outputs + clock (tap MIDI again)
+const midiHeld = new Map();
+// MIDI device slots on the MIDI page (rows 1\u20134, top to bottom). A connected device lands in the first
+// slot whose name pattern matches; anything unrecognised counts as an external keyboard.
+const MIDI_SLOTS = [
+  { id: 'lp', label: 'LP', re: /launchpad/i },
+  { id: 'trig', label: 'TRIG IO', re: /trigger/i },
+  { id: 'pad8', label: '8PAD', re: /sample\s*pad/i },
+  { id: 'keys', label: 'EXT KEYS', re: /./ },
+];
+const slotFor = name => MIDI_SLOTS.find(sl => sl.re.test(name || 'MIDI in')).id;
+function refreshMidiInputs(access) {
+  midiInputs = [];
+  access.inputs.forEach(inp => {
+    if (inp.state === 'disconnected') return;
+    const slot = slotFor(inp.name);
+    midiInputs.push({ id: inp.id, name: inp.name || 'MIDI in', slot });
+    inp.onmidimessage = e => onMidi(slot, e.data);
+  });
+  midiOutputs = [];
+  access.outputs.forEach(o => { if (o.state !== 'disconnected') midiOutputs.push({ id: o.id, name: o.name || 'MIDI out', port: o }); });
+  if (midiPage) render();
+}
+function startMidi() {
+  if (midiStatus === 'ok' || midiStatus === 'asking') return;
+  if (!navigator.requestMIDIAccess) { midiStatus = 'unavailable'; return; }
+  midiStatus = 'asking';
+  navigator.requestMIDIAccess({ sysex: false }).then(access => {
+    midiStatus = 'ok';
+    refreshMidiInputs(access);
+    access.onstatechange = () => refreshMidiInputs(access);
+  }).catch(() => { midiStatus = 'unavailable'; if (midiPage) render(); });
+}
+// MIDI clock in (when CLOCK IN is on): follow the tempo from 24 ticks per beat, and Start / Stop
+let clockTicks = [];
+function onClock(b) {
+  if (b === 0xfa || b === 0xfb) { if (!playing) startPlay(); return; }
+  if (b === 0xfc) { if (playing) stopPlay(); return; }
+  if (b !== 0xf8) return;
+  const now = performance.now();
+  clockTicks.push(now);
+  if (clockTicks.length > 25) clockTicks.shift();
+  if (clockTicks.length === 25) {
+    const bpm = Math.round(60000 / (clockTicks[24] - clockTicks[0]));
+    if (bpm >= 40 && bpm <= 240 && bpm !== S.bpm) { S.bpm = bpm; refreshTimedFx(); syncFnKeys(); renderScreen(); }
+  }
+}
+function onMidi(id, data) {
+  if (data[0] >= 0xf8) { if (prefs.clockIn) onClock(data[0]); return; }
+  const cmd = data[0] & 0xf0, n = data[1], vel = data[2];
+  if (cmd === 0x90 && vel > 0) midiNoteOn(id, n);
+  else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) midiNoteOff(id, n);
+}
+function midiNoteOn(id, n) {
+  const targets = inputTargets(id);
+  if (!targets.length) return;
+  audio();
+  midiNoteOff(id, n);
+  const pn = n + keysTranspose(); // played note (transposed on the KEYS page); held by the key number
+  targets.forEach(ti => { S.tracks[ti].last = pn; });
+  const lit = targets.includes(curTrack) ? padsForNote(pn) : [];
+  lit.forEach(p => p.classList.add('down'));
+  midiHeld.set(`${id}:${n}`, { vs: targets.map(ti => voice(ti, pn, AC.currentTime)), recs: targets.map(ti => recordOn(ti, pn)), lit });
+}
+function midiNoteOff(id, n) {
+  const k = midiHeld.get(`${id}:${n}`);
+  if (!k) return;
+  midiHeld.delete(`${id}:${n}`);
+  k.vs.forEach(v => v.stop(AC.currentTime));
+  k.recs.forEach(recordOff);
+  k.lit.forEach(p => p.classList.remove('down'));
+}
+// Tracks that play from input src now: input matches, live input not muted, and either AUTO-ARM is
+// off (always listening) or it's on and the track is the selected one
+function inputTargets(src) {
+  return S.tracks.map((t, i) => i).filter(i => {
+    const t = S.tracks[i];
+    return t.input === src && !t.inMute && (!t.autoArm || i === curTrack);
+  });
+}
+const inputName = v => v === 'kbd' ? 'KBD' : v === 'none' ? 'NONE' : (MIDI_SLOTS.find(sl => sl.id === v) || { label: 'MIDI' }).label;
+// Rows bottom→top: MUTE (live input muted) · AUTO-ARM · KBD · CLIPS (white = clips play) · MIDI devices
+// Rows bottom\u2192top: MUTE \u00b7 KBD \u00b7 CLIPS \u00b7 EXT KEYS \u00b7 8PAD \u00b7 TRIG IO \u00b7 LP (top row empty).
+// An input pad cycles AUTO (plays while the track is selected) \u2192 FIXED (always plays) \u2192 off.
+function midiValueAt(r) {
+  if (r === 7) return 'mute';
+  if (r === 6) return 'kbd';
+  if (r === 5) return 'clips';
+  return r >= 1 && MIDI_SLOTS[r - 1] ? MIDI_SLOTS[r - 1].id : null; // device slots: LP, TRIG IO, 8PAD, EXT KEYS
+}
+// MIDI page 2 (outputs): row 1 = CLOCK OUT, CLOCK IN switches; rows 2\u20137 = output devices per track; row 8 = NO OUT
+function midiOutDesc(r, c) {
+  const t = S.tracks[c];
+  if (r === 0) {
+    if (c === 0) return { label: 'CLOCK\nOUT', tone: prefs.clockOut ? 'sel' : 'white' };
+    if (c === 1) return { label: 'CLOCK\nIN', tone: prefs.clockIn ? 'sel' : 'white' };
+    return { tone: 'off' };
+  }
+  if (r === 7) return { label: 'NO OUT', tone: t.midiOut ? 'empty' : 'sel' };
+  const o = midiOutputs[r - 1];
+  if (!o) return { tone: 'off' };
+  return { label: o.name.slice(0, 14), tone: t.midiOut === o.name ? 'sel' : (c === curTrack ? 'white' : 'empty') };
+}
+function midiOutDown(r, c) {
+  const t = S.tracks[c], name = labelOf(trackButtons[c]);
+  if (r === 0) {
+    const key = c === 0 ? 'clockOut' : 'clockIn';
+    prefs[key] = !prefs[key]; savePrefs();
+    return say(`MIDI clock ${c === 0 ? 'out' : 'in'} ${prefs[key] ? 'on' : 'off'}`);
+  }
+  if (r === 7) { t.midiOut = null; return say(`Track ${name} \u00b7 no MIDI out`); }
+  const o = midiOutputs[r - 1];
+  t.midiOut = t.midiOut === o.name ? null : o.name;
+  say(t.midiOut ? `Track ${name} sends notes to ${o.name} on channel ${c + 1}` : `Track ${name} \u00b7 no MIDI out`);
+}
+function midiDesc(r, c) {
+  if (midiOutPage) return midiOutDesc(r, c);
+  const v = midiValueAt(r), t = S.tracks[c];
+  if (v === null) return { tone: 'off' };
+  if (v === 'mute') return { label: 'MUTE', tone: t.inMute ? 'muteon' : 'muteoff' };
+  if (v === 'clips') return { label: 'CLIPS', tone: t.clipMute ? 'empty' : 'sel' };
+  if (v === 'arm') return { label: `AUTO-ARM\n${t.autoArm ? 'ON' : 'OFF'}`, tone: t.autoArm ? 'armoff' : 'armon' }; // ON = light red, OFF = bright red (always listening)
+  const plugged = midiInputs.some(m => m.slot === v); // \u25cf = a device in this slot is connected
+  const name = v === 'kbd' ? 'KBD' : inputName(v) + (plugged ? ' \u25cf' : '');
+  if (t.input !== v) return { label: name, tone: c === curTrack ? 'white' : 'empty' };
+  return t.autoArm ? { label: `AUTO\n${name}`, tone: 'sel' } : { label: `FIXED\n${name}`, tone: 'armon' };
+}
+function midiDown(r, c) {
+  if (midiOutPage) return midiOutDown(r, c);
+  const v = midiValueAt(r), t = S.tracks[c], name = labelOf(trackButtons[c]);
+  if (v === 'mute') { t.inMute = !t.inMute; say(`Track ${name} live input ${t.inMute ? 'muted' : 'unmuted'} (${inputName(t.input)} kept)`); return; }
+  if (v === 'clips') { t.clipMute = !t.clipMute; say(`Track ${name} clips ${t.clipMute ? 'muted · live input still plays' : 'unmuted'}`); return; }
+  // input pad: off \u2192 AUTO \u2192 FIXED \u2192 off
+  if (t.input !== v) { t.input = v; t.autoArm = true; }
+  else if (t.autoArm) t.autoArm = false;
+  else { t.input = 'none'; t.autoArm = true; }
+  say(t.input === 'none' ? `Track ${name} \u00b7 no live input` : `Track ${name} input \u00b7 ${inputName(v)} \u00b7 ${t.autoArm ? 'AUTO (plays when selected)' : 'FIXED (always plays)'}`);
+}
+let xyPick = null;      // while X or Y is held: { axis, used } — tap a slider column to assign it
+// App settings, remembered in this browser
+const PREFS = [
+  { key: 'flash', label: 'FLASH\n1–8', name: 'Activity flashes on 1–8' },
+  { key: 'keyFlash', label: 'FLASH\nKEYS', name: 'Note flashes on the keys page' },
+  { key: 'otherNotes', label: 'OTHER\nNOTES', name: "Other tracks' notes on the keys page" },
+  null, null, null, null, null,
+  // row 2: XY pad smoothing as a 4-step slider (0 = off)
+  { key: 'smoothLvl', value: 0, label: 'SMOOTH\nOFF', name: 'XY smoothing off' },
+  { key: 'smoothLvl', value: 1, label: 'LOW', name: 'XY smoothing low' },
+  { key: 'smoothLvl', value: 2, label: 'MID', name: 'XY smoothing medium' },
+  { key: 'smoothLvl', value: 3, label: 'HIGH', name: 'XY smoothing high' },
+];
+const PREFS_KEY = 'groovebox-prefs';
+PREFS[63] = { key: 'rename', label: 'RENAME\nBTNS', name: 'Rename edge buttons by double-tap' }; // bottom-right pad
+const prefs = { flash: true, keyFlash: true, otherNotes: true, smoothLvl: 2, rename: false, clockOut: false, clockIn: false };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) {}
+if (prefs.smoothAmt !== undefined) { // older on/off + amount settings
+  prefs.smoothLvl = prefs.smooth === false ? 0 : prefs.smoothAmt + 1;
+  delete prefs.smooth; delete prefs.smoothAmt;
+}
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} };
+let message = '', messageTimer = null;
+
+/* ============================== HISTORY ============================== */
+const hist = [], fut = [];
+const snap = () => JSON.stringify(S.tracks.map(t => ({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips, split: t.split, kit: t.kit, kitName: t.kitName, active: t.active, stopped: t.stopped })));
+function commit() { hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
+function restore(json) {
+  JSON.parse(json).forEach((d, i) => {
+    const t = S.tracks[i];
+    Object.assign(t, d, { queued: null });
+    if (AC) buildFx(i);
+  });
+  render();
+}
+function undo() { if (!hist.length) return say('Nothing to undo'); fut.push(snap()); restore(hist.pop()); say('Undo'); }
+function redo() { if (!fut.length) return say('Nothing to redo'); hist.push(snap()); restore(fut.pop()); say('Redo'); }
+
+/* ============================== AUDIO ============================== */
+let AC = null, master, NOISE;
+const bus = [];
+function audio() {
+  if (!AC) {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.ratio.value = 4;
+    master = AC.createGain(); master.gain.value = .8;
+    master.connect(comp).connect(AC.destination);
+    NOISE = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+    const d = NOISE.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    S.tracks.forEach((t, i) => {
+      const input = AC.createGain(), output = AC.createGain();
+      output.connect(master);
+      bus[i] = { input, output, chain: [] };
+      buildFx(i);
+    });
+    applyMix();
+  }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+// Short flash on the track button whenever one of its notes sounds
+function flashTrack(ti, t) {
+  if (!prefs.flash) return;
+  const anySolo = S.tracks.some(x => x.solo), tr = S.tracks[ti];
+  if (anySolo ? !tr.solo : tr.mute) return; // solo wins over mute
+  setTimeout(() => {
+    const b = trackButtons[ti];
+    b.classList.add('hit');
+    clearTimeout(b._hitT);
+    b._hitT = setTimeout(() => b.classList.remove('hit'), 80);
+  }, Math.max(0, (t - AC.currentTime) * 1000));
+}
+// KEYS page: pulse the pads of each note that sounds — the selected track in pink, other tracks in blue
+function flashNote(ti, note, t) {
+  const own = ti === curTrack;
+  if (own ? !prefs.keyFlash : !prefs.otherNotes) return;
+  const anySolo = S.tracks.some(x => x.solo), tr = S.tracks[ti];
+  if (anySolo ? !tr.solo : tr.mute) return; // solo wins over mute
+  setTimeout(() => {
+    if (activeMode !== 3 || settings || appSettings || projPage || midiPage) return;
+    const cls = ti === curTrack ? 'nhit' : 'ohit';
+    padsForNote(note).forEach(p => {
+      p.classList.add(cls);
+      clearTimeout(p['_' + cls]);
+      p['_' + cls] = setTimeout(() => p.classList.remove(cls), 90);
+    });
+  }, Math.max(0, (t - AC.currentTime) * 1000));
+}
+// MIDI out: a track with an output sends its notes on channel = track number (1\u20138)
+const midiTime = t => performance.now() + Math.max(0, (t - AC.currentTime) * 1000); // audio time \u2192 MIDI timestamp
+const outPort = name => { const o = midiOutputs.find(m => m.name === name); return o && o.port; };
+function sendNote(ti, note, t, t2) {
+  const tr = S.tracks[ti], port = tr.midiOut && outPort(tr.midiOut);
+  if (!port) return;
+  const anySolo = S.tracks.some(x => x.solo);
+  if (anySolo ? !tr.solo : tr.mute) return;
+  const n = Math.max(0, Math.min(127, note)), ch = ti & 15;
+  try { port.send([0x90 | ch, n, 100], midiTime(t)); if (t2 !== undefined) port.send([0x80 | ch, n, 0], midiTime(t2)); } catch (e) {}
+  return (t3) => { try { port.send([0x80 | ch, n, 0], midiTime(t3)); } catch (e) {} };
+}
+function sendAll(bytes, t) { // clock / start / stop to every output used by a track
+  const names = new Set(S.tracks.map(x => x.midiOut).filter(Boolean));
+  names.forEach(nm => { const port = outPort(nm); if (port) try { port.send(bytes, t === undefined ? undefined : midiTime(t)); } catch (e) {} });
+}
+const SILENT = { stop() {} };
+function voice(ti, note, t) {
+  const v = voiceSynth(ti, note, t), off = sendNote(ti, note, t);
+  if (!off) return v;
+  return { stop(t2) { v.stop(t2); off(Math.max(t2, t)); } };
+}
+function voiceSynth(ti, note, t) {
+  const lt = S.tracks[ti];
+  if (lt.loop >= 0 && loopSlots[lt.loop]) { startLoop(lt, ti, t); return SILENT; } // any note launches the loop from its start
+  flashTrack(ti, t);
+  flashNote(ti, note, t);
+  const tr = S.tracks[ti], snd = soundFor(tr, note), P = PRESETS[snd.preset], L = snd.L, c = AC;
+  const a = MAP.a(L[0]), d = MAP.d(L[1]), s = MAP.s(L[2]), r = MAP.r(L[3]);
+  const cut = MAP.cut(L[4]), q = MAP.res(L[5]), pu = MAP.punch(L[6]), vol = MAP.vol(L[7]) * .55;
+  // sound per note (ALL off): every octave plays the same sound at the same pitch (C2 and C7 = the same kick)
+  const pn = tr.split ? 48 + (((note % 12) + 12) % 12) : note;
+  const f = P.fixed ? P.fixed * Math.pow(2, (pn - 48) / 24) : midiHz(pn);
+  const filt = c.createBiquadFilter();
+  filt.type = P.ft || 'lowpass';
+  filt.Q.value = q;
+  if (P.fe) {
+    filt.frequency.setValueAtTime(Math.min(cut * Math.pow(2, P.fe), 18000), t);
+    filt.frequency.setTargetAtTime(cut, t + a, d / 2 + .01);
+  } else filt.frequency.setValueAtTime(cut, t);
+  const amp = c.createGain();
+  amp.gain.setValueAtTime(0, t);
+  amp.gain.linearRampToValueAtTime(vol, t + a + .002);
+  amp.gain.setTargetAtTime(vol * s, t + a + .002, d / 3 + .001);
+  filt.connect(amp).connect(bus[ti].input);
+  const srcs = [];
+  if (P.w !== 'noise') {
+    const g = c.createGain();
+    g.gain.value = (1 - (P.nz || 0) * .6) * (P.uni ? .6 : 1);
+    g.connect(filt);
+    (P.uni ? [-P.uni, P.uni] : [0]).forEach(det => {
+      const o = c.createOscillator();
+      o.type = P.w;
+      o.detune.value = det;
+      o.frequency.setValueAtTime(f * Math.pow(2, pu / 12), t);
+      o.frequency.exponentialRampToValueAtTime(f, t + (P.pd || .04));
+      o.connect(g); o.start(t); srcs.push(o);
+    });
+  }
+  if (P.w === 'noise' || P.nz) {
+    const n = c.createBufferSource();
+    n.buffer = NOISE; n.loop = true;
+    const g = c.createGain();
+    g.gain.value = P.w === 'noise' ? 1 : P.nz;
+    n.connect(g).connect(filt);
+    n.start(t, Math.random() * 1.5); srcs.push(n);
+  }
+  return {
+    stop(t2) {
+      t2 = Math.max(t2, t + a + .004);
+      amp.gain.cancelScheduledValues(t2);
+      amp.gain.setTargetAtTime(0, t2, r / 4 + .002);
+      srcs.forEach(x => x.stop(t2 + r * 2 + .05));
+    },
+  };
+}
+// Sound for a note: its own sound in per-note mode, otherwise the track's sound
+function soundFor(tr, note) {
+  return (tr.split && tr.kit[((note % 12) + 12) % 12]) || { preset: tr.preset, L: tr.L };
+}
+function audition(ti, note = 48, len = .25) {
+  audio();
+  voice(ti, note, AC.currentTime).stop(AC.currentTime + len);
+}
+
+/* ---------- effects ---------- */
+const stepDur = () => 60 / S.bpm / 4;
+function impulse(sec) {
+  const len = Math.floor(AC.sampleRate * sec), buf = AC.createBuffer(2, len, AC.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+  }
+  return buf;
+}
+// Read a value table at a fractional level (0–7), blending neighbours, so effects can glide smoothly
+function ix(arr, l) {
+  const i = Math.max(0, Math.min(arr.length - 1, l)), a = Math.floor(i), b = Math.min(arr.length - 1, a + 1);
+  return arr[a] + (arr[b] - arr[a]) * (i - a);
+}
+function curve(fn) { const n = 2048, a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = fn(i / (n - 1) * 2 - 1); return a; }
+function makeFx(type) {
+  const c = AC, input = c.createGain(), output = c.createGain(), dry = c.createGain(), wet = c.createGain();
+  input.connect(dry).connect(output);
+  wet.connect(output);
+  const lfos = [];
+  const mix = l => { const m = l / 7; dry.gain.value = Math.cos(m * Math.PI / 2); wet.gain.value = Math.sin(m * Math.PI / 2); };
+  const insert = () => { dry.gain.value = 0; wet.gain.value = 1; };
+  const lfo = () => { const o = c.createOscillator(), g = c.createGain(); o.connect(g); o.start(); lfos.push(o); return [o, g]; };
+  let set = () => {};
+  switch (FX[type].n) {
+    case 'OFF': dry.gain.value = 1; wet.gain.value = 0; break;
+    case 'DELAY': {
+      const dl = c.createDelay(4), fb = c.createGain(), tone = c.createBiquadFilter();
+      input.connect(dl); dl.connect(tone); tone.connect(fb); fb.connect(dl); tone.connect(wet);
+      set = L => {
+        mix(L[0]);
+        dl.delayTime.setTargetAtTime(ix([1, 2, 3, 4, 6, 8, 12, 16], L[1]) * stepDur(), c.currentTime, .02);
+        fb.gain.value = ix([0, .15, .3, .45, .55, .65, .75, .85], L[2]);
+        tone.frequency.value = 500 * Math.pow(30, L[3] / 7);
+      };
+      break;
+    }
+    case 'REVERB': {
+      const conv = c.createConvolver(), damp = c.createBiquadFilter();
+      input.connect(conv); conv.connect(damp); damp.connect(wet);
+      let size = -1;
+      set = L => {
+        mix(L[0]);
+        const sz = Math.round(L[1]);
+        if (sz !== size) { size = sz; conv.buffer = impulse([.4, .7, 1, 1.5, 2.2, 3, 4.5, 6][size]); }
+        damp.frequency.value = 16000 * Math.pow(1 / 40, L[2] / 7);
+      };
+      break;
+    }
+    case 'DRIVE': {
+      const ws = c.createWaveShaper(), tone = c.createBiquadFilter(), lvl = c.createGain();
+      ws.oversample = '2x';
+      input.connect(ws); ws.connect(tone); tone.connect(lvl); lvl.connect(wet);
+      set = L => {
+        mix(L[0]);
+        const k = 1 + L[1] * 10;
+        ws.curve = curve(x => (1 + k) * x / (1 + k * Math.abs(x)));
+        tone.frequency.value = 800 * Math.pow(20, L[2] / 7);
+        lvl.gain.value = (L[3] + 1) / 8 * 1.2;
+      };
+      break;
+    }
+    case 'FILTER': {
+      const f = c.createBiquadFilter(), [o, g] = lfo();
+      input.connect(f); f.connect(wet); g.connect(f.frequency); insert();
+      set = L => {
+        const cut = MAP.cut(L[0]);
+        f.frequency.value = cut; f.Q.value = ix([.5, 1, 2, 4, 6, 9, 13, 18], L[1]);
+        o.frequency.value = ix([.1, .25, .5, 1, 2, 4, 8, 12], L[2]);
+        g.gain.value = cut * .9 * L[3] / 7;
+      };
+      break;
+    }
+    case 'CHORUS': {
+      const dl = c.createDelay(.1), [o, g] = lfo();
+      dl.delayTime.value = .02;
+      input.connect(dl); dl.connect(wet); g.connect(dl.delayTime);
+      set = L => { mix(L[0]); o.frequency.value = ix([.1, .2, .4, .7, 1, 2, 4, 7], L[1]); g.gain.value = .0008 * (L[2] + 1); };
+      break;
+    }
+    case 'TREM': {
+      const amp = c.createGain(), [o, g] = lfo();
+      input.connect(amp); amp.connect(wet); g.connect(amp.gain); insert();
+      set = L => { o.frequency.value = ix([1, 2, 3, 4, 6, 8, 11, 15], L[0]); const dp = L[1] / 7; amp.gain.value = 1 - dp / 2; g.gain.value = dp / 2; };
+      break;
+    }
+    case 'CRUSH': {
+      const ws = c.createWaveShaper();
+      input.connect(ws); ws.connect(wet);
+      set = L => { mix(L[0]); const st = Math.pow(2, ix([1, 2, 3, 4, 5, 6, 8, 10], L[1])) / 2; ws.curve = curve(x => Math.round(x * st) / st); };
+      break;
+    }
+  }
+  return { input, output, set, dispose() { lfos.forEach(o => o.stop()); input.disconnect(); output.disconnect(); } };
+}
+// Chain order for the effects that are on: DRIVE → CRUSH → FILTER → CHORUS → TREM → DELAY → REVERB
+const FX_ORDER = [3, 7, 4, 5, 6, 1, 2];
+// Mute / solo: a track sounds when it isn't muted and either nothing is soloed or it is soloed
+const VOL = [.1, .3, .5, .7, .85, 1]; // MIX fader levels (6 rows)
+const volPct = t => Math.round(VOL[t.vol] * 100);
+const anySoloed = () => S.tracks.some(t => t.solo);
+function applyMix() {
+  if (!AC) return;
+  const anySolo = S.tracks.some(t => t.solo);
+  S.tracks.forEach((t, i) => {
+    const on = anySolo ? t.solo : !t.mute; // when anything is soloed, soloed tracks play even if muted
+    bus[i].output.gain.setTargetAtTime(on ? VOL[t.vol] : 0, AC.currentTime, .01);
+  });
+}
+function buildFx(i) {
+  const b = bus[i], t = S.tracks[i];
+  b.input.disconnect();
+  b.chain.forEach(x => x.fx.dispose());
+  b.chain = [];
+  let node = b.input;
+  FX_ORDER.forEach(type => {
+    if (!t.fxOn[type]) return;
+    const fx = makeFx(type);
+    node.connect(fx.input);
+    fx.set(t.fxP[type]);
+    node = fx.output;
+    b.chain.push({ type, fx });
+  });
+  node.connect(b.output);
+}
+function refreshTimedFx() {
+  if (AC) bus.forEach((b, i) => b.chain.forEach(x => { if (FX[x.type].n === 'DELAY') x.fx.set(S.tracks[i].fxP[x.type]); }));
+}
+
+/* ============================== SEQUENCER ============================== */
+let playing = false, step = 0, nextT = 0, timer = null, curStep = -1, lastPlayed = null;
+const visQ = [];
+function startPlay() {
+  audio();
+  S.tracks.forEach(t => { if (t.loop >= 0) ensureLoopBuf(t.loop); }); // fetch loop audio as playback starts
+  playing = true; step = 0; nextT = AC.currentTime + .06; nudge = 0; nudgeSteps = 0; visQ.length = 0; lastPlayed = null;
+  if (prefs.clockOut) sendAll([0xfa], nextT);
+  timer = setInterval(schedule, 25);
+  schedule();
+  syncFnKeys(); render();
+}
+function stopPlay() {
+  if (prefs.clockOut && playing) sendAll([0xfc]);
+  playing = false; clearInterval(timer); curStep = -1; visQ.length = 0;
+  S.tracks.forEach(stopLoop);
+  S.tracks.forEach(t => { if (t.queued !== null && t.queued !== 'stop') { t.active = t.queued; t.stopped = false; } t.queued = null; });
+  freeBlink(); syncFnKeys(); render();
+}
+function schedule() {
+  while (nextT < AC.currentTime + .12) {
+    playStep(step, nextT);
+    visQ.push({ s: step, t: nextT });
+    nextT += stepDur() + takeNudge();
+    step++;
+  }
+}
+const swingPct = () => Math.round(50 + 25 * S.swing / 7);
+function playStep(st, t) {
+  const s16 = st % STEPS;
+  const ts = t + (st % 2 ? (S.swing / 7) * .5 * stepDur() : 0); // swing delays every second 16th
+  if (s16 === 0 && S.recStop) {
+    S.recStop = false;
+    setTimeout(() => { if (S.rec) setRec(false); }, Math.max(0, (t - AC.currentTime) * 1000));
+  }
+  if (s16 === 0) S.tracks.forEach(tr => {
+    if (tr.queued === null) return;
+    if (tr.queued === 'stop') tr.stopped = true; else { tr.active = tr.queued; tr.stopped = false; }
+    tr.queued = null;
+  });
+  S.tracks.forEach((tr, i) => {
+    const cl = tr.clips[tr.active];
+    if (cl && !tr.stopped) (cl.auto || []).forEach(a => { if (a.k === 'lp' && a.s === st % clipLen(cl)) applyAuto(i, a); });
+    playLoopStep(tr, i, st, t);
+    if (tr.stopped || !cl) return;
+    const ps = st % clipLen(cl); // position inside this clip (clips can be longer or shorter than a bar)
+    // sound changes apply right away so this step's notes already use the new sound
+    (cl.auto || []).forEach(a => { if (a.s === ps && SOUND_AUTO.has(a.k)) applyAuto(i, a); });
+    if (!tr.clipMute) cl.notes.forEach(n => { // CLIPS muted on the MIDI page: clip notes are silent
+      if (n.s !== ps) return;
+      if (n.skip === st) { delete n.skip; return; }
+      voice(i, n.n, ts).stop(ts + n.len * stepDur() - .005);
+    });
+    (cl.auto || []).forEach(a => { if (a.s === ps && !SOUND_AUTO.has(a.k)) scheduleAuto(i, a, ts); });
+  });
+  if (s16 % 4 === 0 && S.click) playClick(t, s16 === 0);
+  if (prefs.clockOut) for (let k = 0; k < 6; k++) sendAll([0xf8], t + k * stepDur() / 6); // 24 ticks per beat
+}
+
+/* ---------- metronome ---------- */
+const CLICKS = ['BEEP', 'BLIP', 'WOOD', 'TICK', 'COW\nBELL', 'RIM', 'CLAVE', 'SHAKER'];
+function playClick(t, accent) {
+  const c = AC, out = c.createGain();
+  out.gain.value = (S.clickVel + 1) / 8 * .45 * (accent ? 1 : .6);
+  out.connect(master);
+  const env = (g, dec) => { g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(.001, t + dec); };
+  const tone = (type, f, dec, lvl = 1) => {
+    const o = c.createOscillator(), g = c.createGain(), l = c.createGain();
+    o.type = type; o.frequency.value = f; l.gain.value = lvl; env(g, dec);
+    o.connect(g).connect(l).connect(out); o.start(t); o.stop(t + dec + .02);
+  };
+  const noise = (type, f, dec, q = 1) => {
+    const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+    n.buffer = NOISE; fl.type = type; fl.frequency.value = f; fl.Q.value = q; env(g, dec);
+    n.connect(fl).connect(g).connect(out); n.start(t, Math.random()); n.stop(t + dec + .02);
+  };
+  const hi = accent ? 1.5 : 1;
+  switch (S.clickSnd) {
+    case 0: tone('sine', 1175 * hi, .04); break;
+    case 1: tone('square', 800 * hi, .025, .5); break;
+    case 2: tone('triangle', 700 * hi, .05); break;
+    case 3: noise('highpass', 7000, .015); break;
+    case 4: tone('square', 540 * hi, .08, .35); tone('square', 800 * hi, .08, .35); break;
+    case 5: tone('triangle', 1700 * hi, .02); noise('bandpass', 3000, .02, 2); break;
+    case 6: tone('sine', 2500 * hi, .03); break;
+    case 7: noise('bandpass', 5000 * hi, .05, 3); break;
+  }
+}
+function frame() {
+  if (AC && playing) {
+    let changed = false;
+    while (visQ.length && visQ[0].t <= AC.currentTime) {
+      const e = visQ.shift();
+      lastPlayed = e; curStep = e.s; changed = true;
+      if (e.s % 4 === 0) beat();
+    }
+    if (changed && activeMode === 2) renderPads();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+const CLIP_SLOTS = 6; // CLIP/SEQ rows 1–6 are clips, rows 7–8 are MUTE / SOLO
+/* ---------- FX automation in clips ----------
+   While recording, effect on/off and effect slider changes on the recording track are stored in its clip
+   as { s: step, k: 'on' | 'p', fx, i: slider, v: value } and replayed at that step on every loop. */
+function recordAuto(ti, ev) {
+  if (!(S.rec && playing && lastPlayed) || ti !== curTrack) return;
+  const tr = S.tracks[ti];
+  ensureClip(tr);
+  const q = Math.round(lastPlayed.s + (AC.currentTime - lastPlayed.t) / stepDur());
+  const cl = tr.clips[tr.active];
+  const s = wrap(q, clipLen(cl));
+  cl.auto = (cl.auto || []).filter(a => !(a.s === s && a.k === ev.k && a.fx === ev.fx && a.i === ev.i && a.pc === ev.pc));
+  cl.auto.push({ s, ...ev });
+}
+// Sound automation kinds: 'pre' = preset picked, 'sp' = sound slider, 'kit' = drum kit loaded.
+// pc ≥ 0 means one note's own sound (sound-per-note mode), -1 the whole track's sound.
+// 'lp' = a loop edit slider (SPEED / START / LENGTH / PITCH): applied before the loop restarts on that step
+const SOUND_AUTO = new Set(['pre', 'sp', 'kit', 'lp']);
+function applyAuto(ti, a) {
+  const tr = S.tracks[ti];
+  if (a.k === 'lp') {
+    lpOf(tr)[a.i] = a.v;
+    const L = loopSlots[tr.loop];
+    if (a.i === 'pitch' && L && L.buf && lpVal(tr, 'pitch')) shiftedBuf(L, lpVal(tr, 'pitch'));
+    if (ti === curTrack && activeMode === 2 && page2) setTimeout(renderPads, 0);
+    return;
+  }
+  if (SOUND_AUTO.has(a.k)) {
+    if (a.k === 'kit') { tr.kit = buildKit(KITS[a.v]); tr.kitName = KITS[a.v].n; tr.split = true; }
+    else if (a.k === 'pre') {
+      const snd = { preset: a.v, L: [...PRESETS[a.v].L] };
+      if (a.pc >= 0) tr.kit[a.pc] = snd; else { tr.preset = snd.preset; tr.L = snd.L; }
+    } else {
+      const snd = a.pc >= 0 ? (tr.kit[a.pc] ||= { preset: tr.preset, L: [...tr.L] }) : tr;
+      snd.L[a.i] = a.v;
+    }
+    if (ti === curTrack && activeMode === 1 && !settings && !appSettings && !projPage && !midiPage) {
+      setTimeout(() => { renderPads(); renderScreen(); }, 0);
+    }
+    return;
+  }
+  if (a.k === 'on') {
+    if (tr.fxOn[a.fx] === a.v) return;
+    tr.fxOn[a.fx] = a.v;
+    buildFx(ti);
+  } else if (a.k === 'vol') {
+    tr.vol = a.v;
+    applyMix();
+    if (activeMode === 4 && !settings && !appSettings) renderPads();
+    return;
+  } else {
+    tr.fxP[a.fx][a.i] = a.v;
+    const item = bus[ti].chain.find(x => x.type === a.fx);
+    if (item) item.fx.set(tr.fxP[a.fx]);
+  }
+  if (activeMode === 0 && !settings && !appSettings) renderPads();
+}
+function scheduleAuto(ti, a, t) {
+  setTimeout(() => applyAuto(ti, a), Math.max(0, (t - AC.currentTime) * 1000));
+}
+function ensureClip(tr) {
+  if (tr.active >= 0 && tr.clips[tr.active]) return;
+  let slot = tr.clips.slice(0, CLIP_SLOTS).findIndex(x => !x);
+  if (slot < 0) slot = 0;
+  tr.clips[slot] = { notes: [] };
+  tr.active = slot; tr.stopped = false; tr.queued = null;
+}
+// Live recording: quantize to the nearest 16th
+function recordOn(ti, n) {
+  if (!(S.rec && playing && lastPlayed)) return null;
+  const tr = S.tracks[ti];
+  commit();
+  ensureClip(tr);
+  const now = AC.currentTime;
+  const q = Math.round(lastPlayed.s + (now - lastPlayed.t) / stepDur());
+  const cl = tr.clips[tr.active];
+  const s16 = wrap(q, clipLen(cl));
+  cl.notes = cl.notes.filter(x => !(x.s === s16 && x.n === n));
+  const note = { s: s16, n, len: 1 };
+  if (q >= step) note.skip = q; // not scheduled yet: don't double the live note
+  cl.notes.push(note);
+  return { note, t0: now };
+}
+function recordOff(r) {
+  if (!r) return;
+  r.note.len = Math.min(MAX_CLIP, Math.max(1, Math.round((AC.currentTime - r.t0) / stepDur())));
+}
+
+/* ============================== UI BUILD ============================== */
+const grid = document.getElementById('grid');
+const pads = [];         // pads[r][c], r 0–7 top→bottom
+const held = new Map();  // pad id → held note info
+const modeButtons = [], trackButtons = [];
+const fnKeys = {};
+const MODES = ['FX', 'SND', 'CLIPS', 'KEYS', 'MIX'];
+const MODE_NAMES = MODES;
+// Order: top row right→left (TAP TEMPO … REC), then right column bottom→top (X, X, REDO, UNDO); X = placeholders
+// Top row cols 5–8 read right→left from index 0; right column rows 1–4 read bottom→top from index 4.
+// Result: top row … → UNDO REDO REC PLAY/STOP; right column TAP TEMPO, CLICK, MIDI, X
+const TOP = ['PLAY/STOP', 'REC', 'REDO', 'UNDO', 'X', 'MIDI', 'CLICK', 'TAP TEMPO'];
+
+function pressable(b, onDown, onUp) {
+  b.addEventListener('pointerdown', e => { try { b.setPointerCapture?.(e.pointerId); } catch (_) {} onDown(); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => b.addEventListener(t, onUp));
+  b.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); onDown(); } });
+  b.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') onUp(); });
+  b.addEventListener('blur', onUp);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
+/* ---------- rename by double-click / double-tap ---------- */
+// v3 key: a one-time reset of all custom names after buttons moved (older keys are removed)
+const LABEL_KEY = 'groovebox-labels-v3';
+try { localStorage.removeItem('groovebox-labels'); localStorage.removeItem('groovebox-labels-v2'); } catch (e) {}
+let customLabels = {};
+try { customLabels = JSON.parse(localStorage.getItem(LABEL_KEY) || '{}') || {}; } catch (e) { customLabels = {}; }
+// Layout v2 swapped the top row and the side column: move saved names to the new button ids
+if (!customLabels._v2) {
+  const moved = { _v2: 1 };
+  Object.entries(customLabels).forEach(([id, v]) => {
+    const m = id.match(/^btn-(\d)-(\d)$/);
+    if (!m) return;
+    const r = +m[1], c = +m[2];
+    if (r === 0) moved[`btn-${c + 1}-8`] = v;
+    else if (c === 8) moved[`btn-0-${r - 1}`] = v;
+  });
+  customLabels = moved;
+  try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
+}
+// Layout v4 moved T1–T4 from the top row to the new bottom row
+if (!customLabels._v4) {
+  [0, 1, 2, 3].forEach(c => {
+    if (customLabels[`btn-0-${c}`] !== undefined) { customLabels[`btn-9-${c}`] = customLabels[`btn-0-${c}`]; delete customLabels[`btn-0-${c}`]; }
+  });
+  customLabels._v4 = 1;
+  try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
+}
+// Layout v5 swapped the section keys (top row) with the bottom four function keys (right column)
+if (!customLabels._v5) {
+  [4, 5, 6, 7].forEach(c => {
+    const a = `btn-0-${c}`, b2 = `btn-${c + 1}-8`, va = customLabels[a], vb = customLabels[b2];
+    delete customLabels[a]; delete customLabels[b2];
+    if (va !== undefined) customLabels[b2] = va;
+    if (vb !== undefined) customLabels[a] = vb;
+  });
+  customLabels._v5 = 1;
+  try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
+}
+// Layout v3 reversed the side column: flip saved names to match
+if (!customLabels._v3) {
+  const moved = { _v3: 1 };
+  Object.entries(customLabels).forEach(([id, v]) => {
+    const m = id.match(/^btn-(\d)-8$/);
+    moved[m ? `btn-${9 - +m[1]}-8` : id] = v;
+  });
+  customLabels = moved;
+  try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
+}
+function secondTap(b) {
+  if (!prefs.rename) return false; // renaming is off unless switched on in SETTINGS
+  const now = performance.now(), dbl = b._lastPress !== undefined && now - b._lastPress < 400;
+  b._lastPress = dbl ? undefined : now;
+  return dbl;
+}
+const labelOf = b => (b.firstChild && b.firstChild.nodeType === 3 ? b.firstChild.nodeValue : b.textContent);
+function setLabel(b, text) {
+  if (b.firstChild && b.firstChild.nodeType === 3) b.firstChild.nodeValue = text; else b.textContent = text;
+  if (b.getAttribute('role') === 'radio') b.setAttribute('aria-label', text.replace(/\n/g, ' '));
+}
+function openRename(b) {
+  document.querySelector('.rename')?.remove();
+  const rect = b.getBoundingClientRect();
+  const inp = document.createElement('input');
+  inp.className = 'rename';
+  inp.id = 'rename-input';
+  inp.setAttribute('aria-label', 'Button name');
+  inp.maxLength = 20;
+  inp.value = labelOf(b).replace(/\n/g, ' ');
+  Object.assign(inp.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+  let done = false;
+  const finish = save => {
+    if (done) return; done = true;
+    if (save) {
+      const v = inp.value.trim();
+      if (v) customLabels[b.id] = v; else delete customLabels[b.id];
+      setLabel(b, v || b.dataset.default);
+      try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
+      renderScreen();
+    }
+    inp.remove();
+    b.focus({ preventScroll: true });
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  document.body.appendChild(inp);
+  inp.focus(); inp.select();
+}
+const renameLater = b => setTimeout(() => openRename(b), 0);
+
+function momentaryKey(b, action) {
+  let isDown = false, rename = false;
+  pressable(b, () => {
+    isDown = true; b.classList.add('down');
+    rename = secondTap(b);
+    if (!rename) { audio(); action(); }
+  }, () => {
+    if (!isDown) return;
+    isDown = false; b.classList.remove('down');
+    if (rename) { rename = false; renameLater(b); }
+  });
+}
+// Key with tap and hold actions (double-tap renames)
+/* ---------- CLEAR / DUP: hold them and tap a pad ---------- */
+const mods = { clear: false, dup: false };
+let clipboard = null; // { clip, from: [track, slot] } after DUP + tap on a clip
+function modifierKey(b, key, label) {
+  b.textContent = `${b.textContent}\n${label}`; // keep the row letter above the name
+  fnKeys[label] = b;
+  // CLEAR latches: a quick tap switches it on (stays lit) and another tap switches it off;
+  // holding it keeps it on only while held. DUP is hold-only.
+  const latch = key === 'clear';
+  let isDown = false, used = false, rename = false, latched = false, wasLatched = false, t0 = 0;
+  if (latch) b.setAttribute('aria-pressed', 'false');
+  pressable(b, () => {
+    isDown = true; b.classList.add('down');
+    rename = secondTap(b);
+    if (rename) return;
+    t0 = performance.now(); wasLatched = latched;
+    mods[key] = true; used = false; b._markUsed = () => { used = true; };
+    renderScreen();
+  }, () => {
+    if (!isDown) return;
+    isDown = false; b.classList.remove('down');
+    if (rename) { rename = false; renameLater(b); return; }
+    if (latch) {
+      const quickTap = performance.now() - t0 < 300 && !used;
+      latched = quickTap ? !wasLatched : false;
+      b.setAttribute('aria-pressed', String(latched));
+      if (quickTap) say(latched ? `${label} on · tap ${label} again to turn it off` : `${label} off`);
+    }
+    mods[key] = latch && latched;
+    // DUP pressed and released without copying anything cancels a waiting paste
+    if (key === 'dup' && !used && clipboard) { clipboard = null; say('Copy cancelled'); }
+    render();
+  });
+}
+const activeAuto = ti => { const t = S.tracks[ti], cl = t.clips[t.active]; return cl ? (cl.auto || []) : []; };
+function clearAuto(ti, pred, what) {
+  const t = S.tracks[ti], cl = t.clips[t.active];
+  if (!cl || !(cl.auto || []).some(pred)) return say(`No ${what} automation in track ${labelOf(trackButtons[ti])}'s clip`);
+  commit();
+  cl.auto = cl.auto.filter(a => !pred(a));
+  say(`${what} automation cleared`);
+}
+function holdKey(b, onTap, onHold) {
+  let isDown = false, holdT = null, heldDown = false, rename = false;
+  pressable(b, () => {
+    isDown = true; heldDown = false;
+    b.classList.add('down');
+    audio();
+    rename = secondTap(b);
+    if (rename) return;
+    holdT = setTimeout(() => { heldDown = true; onHold(); }, 600);
+  }, () => {
+    if (!isDown) return;
+    isDown = false;
+    b.classList.remove('down');
+    clearTimeout(holdT);
+    if (rename) { rename = false; renameLater(b); return; }
+    if (heldDown) return;
+    onTap();
+  });
+}
+// PLAY/STOP: tap = play or stop; hold = record on/off (starts playback)
+function playKey(b) {
+  holdKey(b, () => { if (playing) { stopPlay(); if (S.rec) setRec(false); } else startPlay(); }, () => setRec(!S.rec));
+}
+function toggleKey(b, action) {
+  b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => { if (secondTap(b)) return renameLater(b); audio(); action(); });
+}
+
+/* ---------- tap tempo ---------- */
+let blinkOn = true, tapAnchor = 0, freeT = null; // blinks at 120 BPM from the start
+function flashTap() {
+  const b = fnKeys.TAP; b.classList.add('beat');
+  setTimeout(() => b.classList.remove('beat'), Math.min(110, 15000 / S.bpm));
+}
+// Each beat at the tap-tempo rate: blink TAP TEMPO (if on) and flash the record state red
+function beat() {
+  if (blinkOn) flashTap();
+  // waiting clips flash on every beat (first half of the beat)
+  const rootEl = document.documentElement;
+  rootEl.classList.add('beatflash');
+  setTimeout(() => rootEl.classList.remove('beatflash'), 30000 / S.bpm);
+  if (S.rec) {
+    const root = document.documentElement;
+    root.classList.add('recflash');
+    setTimeout(() => root.classList.remove('recflash'), 30000 / S.bpm);
+  }
+}
+function freeBlink() {
+  clearTimeout(freeT);
+  if (playing || !(blinkOn || S.rec)) return;
+  const iv = 60000 / S.bpm, now = performance.now();
+  let next = tapAnchor + Math.ceil((now - tapAnchor) / iv) * iv;
+  if (next - now < 5) next += iv;
+  freeT = setTimeout(() => { beat(); freeBlink(); }, next - now);
+}
+// Live tap sync: measure how far the tap is from the nearest beat and glide the playback onto it
+// over the next beat (spread across 4 sixteenths), so it follows the tapping without jumps
+let nudge = 0, nudgeSteps = 0;
+function syncBeatTo(tapPerf) {
+  if (!playing || !AC) return;
+  const sd = stepDur();
+  const tapA = AC.currentTime - (performance.now() - tapPerf) / 1000;
+  const pos = step - (nextT + nudge - tapA) / sd; // where the tap fell, in 16ths
+  const beat = Math.round(pos / 4) * 4;            // nearest quarter note
+  nudge += (pos - beat) * sd;                      // seconds the grid must move (+ = later)
+  nudgeSteps = 4;
+}
+function takeNudge() {
+  if (nudgeSteps <= 0) return 0;
+  const share = nudge / nudgeSteps;
+  nudge -= share; nudgeSteps--;
+  return share;
+}
+function tapTempoKey(b) {
+  const HOLD_MS = 700, RESET_MS = 2000;
+  let taps = [], holdTimer = null, isDown = false;
+  const press = () => {
+    isDown = true;
+    audio();
+    const t = performance.now();
+    b.classList.add('down');
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => { blinkOn = false; taps = []; freeBlink(); say('Beat blink off'); }, HOLD_MS);
+    if (taps.length && t - taps[taps.length - 1] > RESET_MS) taps = [];
+    taps.push(t);
+    if (taps.length > 5) taps.shift();
+    if (taps.length >= 2) {
+      const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+      S.bpm = Math.max(40, Math.min(240, Math.round(60000 / iv)));
+      syncBeatTo(t); // follow the live taps: the beat glides onto each tap
+      blinkOn = true; tapAnchor = t;
+      refreshTimedFx(); freeBlink(); syncFnKeys(); renderScreen();
+    }
+  };
+  const release = () => { if (!isDown) return; isDown = false; b.classList.remove('down'); clearTimeout(holdTimer); };
+  pressable(b, press, release);
+  b._press = press; b._release = release; // also driven by the § key
+}
+
+/* ---------- build grid ---------- */
+// Rows: 0 = sections (cols 5–8), 1–8 = pads + function column, 9 = tracks T1–T8
+for (let r = 0; r < 10; r++) {
+  for (let c = -1; c < 9; c++) {
+    if (c === -1) { // left column: spare buttons, no function yet
+      if (r === 0 || r === 9) { const e = document.createElement('div'); e.className = 'corner'; grid.appendChild(e); continue; }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.id = `btn-${r}-left`;
+      b.className = 'btn fn spare';
+      b.textContent = 'ABCDEFGH'[r - 1];
+      if (r === 1) { b.textContent = 'A\nSONGS'; fnKeys.LOAD = b; toggleKey(b, () => openProjects('load')); }
+      else if (r === 2) { // SAVE is a function key: tap = save now, hold = save as a new project
+        b.textContent = 'B\nSAVE'; fnKeys.SAVE = b;
+        holdKey(b, () => quickSave(false), () => quickSave(true));
+      }
+      else if (r === 3) modifierKey(b, 'dup', 'DUP');
+      else if (r === 4) modifierKey(b, 'clear', 'CLEAR');
+      else if (r === 8) { // purple SETTINGS (same page as the grey corner button)
+        b.textContent = 'H\nSETTINGS';
+        b.classList.add('setbtn');
+        fnKeys.SET2 = b;
+        toggleKey(b, openSettings);
+      }
+      else momentaryKey(b, () => {});
+      grid.appendChild(b);
+      continue;
+    }
+    if ((r === 9 || r === 0) && c === 8) { const e = document.createElement('div'); e.className = 'corner'; grid.appendChild(e); continue; }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = `btn-${r}-${c}`;
+    // Function keys: right column rows 1–4 (X, X, X, REDO) and top row cols 5–8 (UNDO, CLICK, PLAY/STOP, TAP TEMPO)
+    if (r === 0 && c === 8) { // SETTINGS (top-right corner)
+      b.className = 'btn fn setbtn setgrey';
+      b.textContent = 'SETTINGS';
+      fnKeys.SET = b;
+      toggleKey(b, openSettings);
+    } else if ((c === 8 && r <= 3) || (r === 0 && c >= 4)) {
+      const label = c === 8 ? TOP[8 - r] : TOP[7 - c];
+      b.className = 'btn fn';
+      b.textContent = label;
+      if (label === 'TAP TEMPO') { fnKeys.TAP = b; const s = document.createElement('span'); s.className = 'small'; b.append(s); tapTempoKey(b); }
+      else if (label === 'PLAY/STOP') { fnKeys.PLAY = b; b.textContent = 'PLAY/\nSTOP'; b.setAttribute('aria-pressed', 'false'); playKey(b); }
+      else if (label === 'CLICK') { // tap = click on/off; hold = click settings
+        fnKeys.CLICK = b;
+        b.setAttribute('aria-pressed', 'false');
+        holdKey(b, () => { S.click = !S.click; syncFnKeys(); say(S.click ? 'Click on' : 'Click off'); },
+                   () => { settings = !settings; appSettings = false; releaseAll(); render(); });
+      }
+      else if (label === 'REC') { fnKeys.REC = b; b.classList.add('rec'); toggleKey(b, () => setRec(!S.rec)); }
+      else if (label === 'X') momentaryKey(b, () => {});
+      else if (label === 'MIDI') { fnKeys.MIDI = b; toggleKey(b, openMidi); }
+      else if (label === 'SETTINGS') { // purple duplicate of the corner SETTINGS button
+        b.classList.add('setbtn');
+        fnKeys.SET2 = b;
+        toggleKey(b, openSettings);
+      }
+      else if (label === 'UNDO') momentaryKey(b, undo);
+      else if (label === 'REDO') momentaryKey(b, redo);
+      else if (label === '←') momentaryKey(b, () => shiftOct(-1));
+      else if (label === '→') momentaryKey(b, () => shiftOct(1));
+    } else if (r === 0 && c <= 3) { // arrows: ↓ ↑ change octave, ← → transpose the KEYS page
+      b.className = 'btn nav';
+      b.textContent = ['↓', '↑', '←', '→'][c];
+      b.setAttribute('aria-label', ['Octave down', 'Octave up', 'Transpose down', 'Transpose up'][c]);
+      momentaryKey(b, [() => shiftOct(-1), () => shiftOct(1), () => shiftTrans(-1), () => shiftTrans(1)][c]);
+    } else if (r === 9) {
+      const i = c;
+      b.className = 'btn track';
+      b.textContent = `${i + 1}`;
+      const inst = document.createElement('span'); // instrument name under the number
+      inst.className = 'small inst';
+      b.append(inst);
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', `Track ${i + 1}`);
+      b.addEventListener('click', () => { if (secondTap(b)) return renameLater(b); selectTrack(i); });
+      b.addEventListener('keydown', e => {
+        const st = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+        if (st) { e.preventDefault(); const n = (i + st + 8) % 8; selectTrack(n); trackButtons[n].focus(); }
+      });
+      trackButtons.push(b);
+    } else if (c === 8) { // section keys: right column row 4 = MIX, rows 5–8 = FX … KEY/FRET
+      const i = r === 4 ? 0 : r === 5 ? 4 : r - 5; // rows 4–8: FX, MIX, SND, CLIPS, KEYS
+      b.className = 'btn mode';
+      b.textContent = MODES[i];
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', MODE_NAMES[i]);
+      b.addEventListener('click', () => {
+        if (secondTap(b)) return renameLater(b);
+        pickSection(i);
+      });
+      b.addEventListener('keydown', e => {
+        const st = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+        if (st) { e.preventDefault(); activeMode = (i + st + 5) % 5; page2 = false; releaseAll(); render(); modeButtons[activeMode].focus(); }
+      });
+      modeButtons[i] = b;
+    } else {
+      const pr = r - 1, pc = c;
+      b.className = 'btn pad';
+      (pads[pr] ||= [])[pc] = b;
+      padPointer(b, pr, pc);
+    }
+    grid.appendChild(b);
+  }
+}
+
+/* ============================== ACTIONS ============================== */
+function say(t) {
+  message = t;
+  clearTimeout(messageTimer);
+  messageTimer = setTimeout(() => { message = ''; renderScreen(); }, 1800);
+  renderScreen();
+}
+function selectTrack(i) { curTrack = i; releaseAll(); render(); }
+// ← → transpose the KEYS page by semitones (±12)
+function shiftTrans(d) {
+  // on CLIPS: ← → shorten / lengthen the selected track's clip by one step
+  if (activeMode === 2 && !settings && !appSettings && !projPage && !midiPage) {
+    const tr = S.tracks[curTrack], cl = tr.clips[tr.active];
+    if (!cl) return say('No clip on this track yet');
+    commit();
+    cl.len = Math.max(1, Math.min(MAX_CLIP, clipLen(cl) + d));
+    if (tr.sel >= cl.len) tr.sel = -1;
+    render();
+    return say(`Clip ${tr.active + 1} length · ${cl.len} steps`);
+  }
+  if (activeMode !== 3 || settings || appSettings || projPage || midiPage) return say('← → transpose on KEYS and change clip length on CLIPS');
+  S.transpose = Math.max(-12, Math.min(12, S.transpose + d));
+  render();
+  say(`Transpose ${S.transpose > 0 ? '+' : ''}${S.transpose}`);
+}
+function shiftOct(d) { S.oct = Math.max(0, Math.min(5, S.oct + d)); render(); say(`Octave ${S.oct}`); }
+function setRec(on) {
+  S.rec = on;
+  S.recStop = false;
+  if (on) { ensureClipCommit(S.tracks[curTrack]); if (!playing) startPlay(); }
+  else document.documentElement.classList.remove('recflash');
+  freeBlink();
+  syncFnKeys(); render(); say(on ? `Recording on track ${labelOf(trackButtons[curTrack])}` : 'Recording off');
+}
+function ensureClipCommit(tr) { if (!(tr.active >= 0 && tr.clips[tr.active])) { commit(); ensureClip(tr); } }
+
+/* ---------- pad layouts ---------- */
+const BLACK = { 1: 1, 2: 3, 4: 6, 5: 8, 6: 10 };  // column → semitone on black-key rows
+const WHITE = [0, 2, 4, 5, 7, 9, 11, 12];
+// Piano rows: pairs of (black, white) rows; bottom pair is the lowest octave
+function pianoNote(r, c, pairs, baseOct) {
+  const pair = Math.floor(r / 2), oct = baseOct + (pairs - 1 - pair);
+  const base = 12 * (oct + 1);
+  if (r % 2 === 0) return c in BLACK ? base + BLACK[c] : null;
+  return base + WHITE[c];
+}
+// One-octave keyboard on INST/SND rows 7–8: semitone 0–12, or null for a gap / the ALL key
+const miniKey = (r, c) => r === 6 ? (c in BLACK ? BLACK[c] : null) : WHITE[c];
+const fretNote = (r, c) => 12 * (S.oct + 1) + 5 * (7 - r) + c;
+// KEYS page note under a pad, including the KEYS transpose (← → buttons)
+function keysNote(r, c) {
+  const n = page2 ? fretNote(r, c) : pianoNote(r, c, 4, S.oct);
+  return n === null ? null : n + S.transpose;
+}
+// transpose applies only while the KEYS page is showing
+const keysTranspose = () => (activeMode === 3 && !settings && !appSettings && !projPage && !midiPage ? S.transpose : 0);
+
+// Click settings: sliders VEL and SWING (8 levels) on the left, click sounds as a column on the right
+function settingsDesc(r, c) {
+  if (c === 7) return { label: CLICKS[r], tone: S.clickSnd === r ? 'sel' : 'white' };
+  if (c > 1) return { tone: 'off' };
+  const v = c === 0 ? S.clickVel : S.swing;
+  return { label: r === 7 ? (c === 0 ? 'VEL' : 'SWING') : '', tone: 7 - r <= v ? 'sel' : 'white' };
+}
+function settingsDown(r, c) {
+  if (c === 7) { S.clickSnd = r; playClick(AC.currentTime, true); say(`Click sound · ${CLICKS[r].replace('\n', ' ')}`); }
+  else if (c === 0) { S.clickVel = 7 - r; playClick(AC.currentTime, true); say(`Click velocity ${S.clickVel + 1}/8`); }
+  else { S.swing = 7 - r; say(`Swing ${swingPct()}%`); }
+}
+// FX/EDIT page 1 rows, bottom to top: DELAY, REVERB, DRIVE, FILTER, CHORUS, TREM, CRUSH (top row empty)
+const fxAt = r => 8 - r;
+// SETTINGS page: one toggle pad per setting, in reading order (white = on)
+function prefsDesc(r, c) {
+  const p = PREFS[r * 8 + c];
+  if (!p) return { tone: 'off' };
+  if (p.value !== undefined) // one-of-four choice: only the chosen one is lit
+    return { label: p.label, tone: prefs[p.key] === p.value ? 'sel' : 'white' };
+  return { label: p.label, tone: prefs[p.key] ? 'sel' : 'white' };
+}
+function prefsDown(r, c) {
+  const p = PREFS[r * 8 + c];
+  if (p.value !== undefined) { prefs[p.key] = p.value; savePrefs(); say(p.name); return; }
+  prefs[p.key] = !prefs[p.key];
+  savePrefs();
+  say(`${p.name} ${prefs[p.key] ? 'on' : 'off'}`);
+}
+/* ---------- PROJECTS (A): 48 slots, saved to your claude.ai account when signed in, else this browser ---------- */
+const PROJ_SLOTS = 48, LOCAL_PROJ = 'groovebox-projects';
+let projects = {};      // slot → { savedAt, data }
+let currentProj = -1;   // slot last saved or loaded
+let projStore = {
+  where: 'this browser',
+  async load() { try { return JSON.parse(localStorage.getItem(LOCAL_PROJ) || '{}'); } catch (e) { return {}; } },
+  async put(slot, rec) { const all = await this.load(); all[slot] = rec; localStorage.setItem(LOCAL_PROJ, JSON.stringify(all)); },
+  async del(slot) { const all = await this.load(); delete all[slot]; localStorage.setItem(LOCAL_PROJ, JSON.stringify(all)); },
+};
+(async () => {
+  try {
+    const [db, user] = await Promise.all([window.claude?.use?.('db'), window.claude?.use?.('user')]);
+    const uid = db && user ? await user.id() : null;
+    if (uid) {
+      const col = db.collection(`data/users/${uid}`); // private to the signed-in person
+      projStore = {
+        where: 'your account',
+        async load() {
+          const snap = await col.get(), out = {};
+          snap.docs.forEach(d => { const m = /^proj-(\d+)$/.exec(d.id); if (m && d.exists) out[m[1]] = d.data(); });
+          return out;
+        },
+        put: (slot, rec) => col.doc(`proj-${slot}`).set(rec),
+        del: slot => col.doc(`proj-${slot}`).delete(),
+      };
+    }
+  } catch (e) { /* keep browser storage */ }
+  try { projects = await projStore.load(); } catch (e) { projects = {}; }
+  if (projPage) render();
+})();
+function projectState() {
+  return {
+    v: 1, bpm: S.bpm, swing: S.swing, clickSnd: S.clickSnd, clickVel: S.clickVel, oct: S.oct, transpose: S.transpose,
+    tracks: S.tracks.map(t => ({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips,
+      active: t.active, stopped: t.stopped, split: t.split, kit: t.kit, kitName: t.kitName, kitSel: t.kitSel, mute: t.mute, solo: t.solo, vol: t.vol, last: t.last, loop: t.loop })),
+  };
+}
+function applyProject(p) {
+  ['bpm', 'swing', 'clickSnd', 'clickVel', 'oct', 'transpose'].forEach(k => { if (p[k] !== undefined) S[k] = p[k]; });
+  p.tracks.forEach((d, i) => { if (S.tracks[i]) Object.assign(S.tracks[i], d, { queued: null, sel: -1 }); });
+  if (AC) { S.tracks.forEach((t, i) => buildFx(i)); applyMix(); }
+  freeBlink();
+}
+async function saveProject(slot, overwrite) {
+  const rec = { savedAt: Date.now(), data: JSON.stringify(projectState()) };
+  try {
+    await projStore.put(slot, rec);
+    projects[slot] = rec; currentProj = slot;
+    say(`Project ${slot + 1} ${overwrite ? 'overwritten' : 'saved'} (${projStore.where})`);
+  } catch (e) { say(`Couldn't save project ${slot + 1}: ${e?.code === 'quota_exceeded' ? 'storage is full' : 'try again'}`); }
+  render();
+}
+/* ---------- AUDIO LOOPS (SND row 5) ----------
+   Slots 1–5 start with the default set published beside the page; tap an empty slot to load your own
+   audio file (kept in this browser). Tap a loaded slot to play it on the selected track: it is stretched
+   to fill its bars at the current tempo and restarts on the bar. Audio is fetched and decoded on first use. */
+const LOOP_DEFAULTS = [
+  { name: 'AMEN', bars: 16, src: 'loops/amen.wav' },
+  { name: 'JUNGLE 170', bars: 4, src: 'loops/jungle-170.wav' },
+  { name: 'PANSPOTS', bars: 1, src: 'loops/panspots-160.wav' },
+  { name: 'BEAT', bars: 1, src: 'loops/beat.wav' },
+  { name: 'WEIRD PERC', bars: 8, src: 'loops/weird-perc-150.wav' },
+];
+const loopSlots = Array(8).fill(null).map((_, i) => (LOOP_DEFAULTS[i] ? { ...LOOP_DEFAULTS[i], buf: null } : null));
+let loopTarget = -1;
+// your own loop files live in this browser's IndexedDB (slot → { name, bars, blob } or { removed: true })
+const loopDB = (() => {
+  let dbp = null;
+  const open = () => (dbp ||= new Promise((res, rej) => {
+    try { const r = indexedDB.open('groovebox', 1); r.onupgradeneeded = () => r.result.createObjectStore('loops'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+    catch (e) { rej(e); }
+  }));
+  const write = fn => open().then(db => new Promise((res, rej) => { const t = db.transaction('loops', 'readwrite'); fn(t.objectStore('loops')); t.oncomplete = res; t.onerror = () => rej(t.error); }));
+  return {
+    put: (k, v) => write(st => st.put(v, k)),
+    all: () => open().then(db => new Promise((res, rej) => {
+      const out = {}, r = db.transaction('loops').objectStore('loops').openCursor();
+      r.onsuccess = () => { const c = r.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); };
+      r.onerror = () => rej(r.error);
+    })),
+  };
+})();
+loopDB.all().then(all => Object.entries(all).forEach(([k, v]) => {
+  loopSlots[+k] = v && !v.removed ? { name: v.name, bars: v.bars, blob: v.blob, buf: null } : null;
+})).then(() => render()).catch(() => {});
+const loopFile = document.createElement('input');
+loopFile.type = 'file'; loopFile.accept = 'audio/*'; loopFile.id = 'loop-file'; loopFile.hidden = true;
+document.body.appendChild(loopFile);
+loopFile.addEventListener('change', () => { const f = loopFile.files[0]; loopFile.value = ''; if (f && loopTarget >= 0) loadLoopFile(loopTarget, f); });
+// bars: from a tempo in the file name ("150_BPM", "jungle170") if there is one, else the count of
+// 1/2/4/8/16 bars whose tempo is closest to the current tempo
+function guessBars(dur, name) {
+  const m = /(\d{2,3})\s*_?\s*bpm/i.exec(name) || /(?:^|\D)(\d{2,3})(?=\D|$)/.exec(name);
+  const named = m && +m[1] >= 60 && +m[1] <= 200 ? +m[1] : 0;
+  if (named) return Math.max(1, Math.round(dur * named / 240));
+  let best = 1, bestD = Infinity;
+  [1, 2, 4, 8, 16].forEach(b => { const bpm = b * 240 / dur, d = Math.abs(bpm - S.bpm); if (bpm >= 50 && bpm <= 220 && d < bestD) { bestD = d; best = b; } });
+  return best;
+}
+async function loadLoopFile(slot, file) {
+  audio();
+  say(`Loading ${file.name}\u2026`);
+  try {
+    const buf = await AC.decodeAudioData(await file.arrayBuffer());
+    const name = file.name.replace(/\.[^.]+$/, '');
+    const rec = { name: name.toUpperCase().replace(/[_-]+/g, ' ').trim(), bars: guessBars(buf.duration, name), buf, blob: file };
+    loopSlots[slot] = rec;
+    let kept = true;
+    try { await loopDB.put(slot, { name: rec.name, bars: rec.bars, blob: file }); } catch (e) { kept = false; }
+    say(`Loop ${slot + 1} \u00b7 ${rec.name} \u00b7 ${rec.bars} bar${rec.bars > 1 ? 's' : ''}${kept ? ' \u00b7 kept in this browser' : ' \u00b7 kept for this session only'} \u00b7 tap it to play`);
+  } catch (e) { say(`Couldn't read ${file.name} as audio`); }
+  render();
+}
+// fetch + decode a slot's audio the first time it's needed
+function ensureLoopBuf(i) {
+  const L = loopSlots[i];
+  if (!L || L.buf || L.loading) return;
+  L.loading = (L.blob ? L.blob.arrayBuffer() : fetch(L.src).then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); }))
+    .then(ab => { audio(); return AC.decodeAudioData(ab); })
+    .then(buf => { L.buf = buf; })
+    .catch(() => { L.loading = null; say(`Couldn't load loop ${L.name}`); });
+}
+function removeLoop(c) {
+  S.tracks.forEach(t => { if (t.loop === c) { t.loop = -1; stopLoop(t); } });
+  say(`Loop ${c + 1} (${loopSlots[c].name}) removed`);
+  loopSlots[c] = null;
+  loopDB.put(c, { removed: true }).catch(() => {});
+}
+function stopLoop(t) { if (t._loopSrc) { try { t._loopSrc.stop(); } catch (e) {} t._loopSrc = null; } }
+// Loop edit settings per track (CLIPS page 2 when the track plays an audio loop): each is an index into
+// LP_OPTS, slider rows 7\u21922 = index 0\u21925 (bottom = lowest)
+const LP_OPTS = { // 7 choices each (slider rows 8\u21922, bottom = lowest)
+  speed: { name: 'SPEED', v: [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8], lab: ['\u00f78', '\u00f74', '\u00f72', '\u00d71', '\u00d72', '\u00d74', '\u00d78'], def: 3 },
+  start: { name: 'START', v: [0, 1 / 8, 1 / 4, 3 / 8, 1 / 2, 5 / 8, 3 / 4], lab: ['0', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4'], def: 0 },
+  frac: { name: 'LENGTH', v: [1 / 64, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1], lab: ['1/64', '1/32', '1/16', '1/8', '1/4', '1/2', 'ALL'], def: 6 },
+  pitch: { name: 'PITCH', v: [-9, -6, -3, 0, 3, 6, 9], lab: ['-9', '-6', '-3', '0', '+3', '+6', '+9'], def: 3 },
+};
+const LP_KEYS = ['speed', 'start', 'frac', 'pitch'];
+function lpOf(tr) {
+  if (tr.lp && !tr.lp.v) tr.lp = { v: 2, speed: tr.lp.speed, start: tr.lp.start, frac: tr.lp.frac + 1, pitch: 3 }; // older 6-step settings
+  return tr.lp || (tr.lp = { v: 2, ...Object.fromEntries(LP_KEYS.map(k => [k, LP_OPTS[k].def])) });
+}
+const isLoopTrack = tr => tr.loop >= 0 && !!loopSlots[tr.loop];
+const lpVal = (tr, k) => LP_OPTS[k].v[lpOf(tr)[k]];
+function playLoopStep(tr, i, st, t) {
+  const L = tr.loop >= 0 && loopSlots[tr.loop];
+  if (!L || tr.clipMute) return;
+  if (!L.buf) { ensureLoopBuf(tr.loop); return; } // still loading: starts on a later bar
+  const span = loopSpan(tr, L);
+  if (st % span === 0) return startLoop(tr, i, t);
+  // not running yet (e.g. its audio just finished loading): join on the next bar, at the right place in the loop
+  if (!tr._loopSrc && st % 16 === 0) startLoop(tr, i, t, (st % span) / span);
+}
+// steps one pass of the loop region takes: its share of the loop's bars, divided by the speed
+function loopSpan(tr, L) {
+  const start = lpVal(tr, 'start'), frac = Math.min(lpVal(tr, 'frac'), 1 - start);
+  return Math.max(1, Math.round(16 * L.bars * frac / lpVal(tr, 'speed')));
+}
+// start the loop region now (or at time t), cutting the previous pass
+function startLoop(tr, i, t, phase = 0) {
+  const L = tr.loop >= 0 && loopSlots[tr.loop];
+  if (!L) return;
+  if (!L.buf) { ensureLoopBuf(tr.loop); return; }
+  const start = lpVal(tr, 'start'), frac = Math.min(lpVal(tr, 'frac'), 1 - start), span = loopSpan(tr, L);
+  if (tr._loopSrc) { try { tr._loopSrc.stop(t); } catch (e) {} }
+  // pitch without changing speed: play a copy time-stretched by the pitch ratio, sped up by the same ratio,
+  // so its length still fits the steps and only the pitch moves
+  const semis = lpVal(tr, 'pitch'), ratio = Math.pow(2, semis / 12);
+  const buf = semis ? shiftedBuf(L, semis) : L.buf;
+  const src = AC.createBufferSource(), region = L.buf.duration * frac * ratio;
+  src.buffer = buf;
+  src.playbackRate.value = region / (span * stepDur()); // fit the region to its steps at this tempo
+  src.connect(bus[i].input);
+  src.start(t, L.buf.duration * start * ratio + region * phase, region * (1 - phase));
+  tr._loopSrc = src;
+  flashTrack(i, t);
+}
+// Granular time-stretch (overlap-add of windowed grains): same pitch, length \u00d7 factor. Cached per pitch.
+function stretchBuf(buf, factor) {
+  const G = 2048, hop = G / 4, n = buf.length, outLen = Math.floor(n * factor);
+  const out = AC.createBuffer(buf.numberOfChannels, outLen, buf.sampleRate);
+  const win = new Float32Array(G).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / G));
+  for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+    const x = buf.getChannelData(ch), y = out.getChannelData(ch), norm = new Float32Array(outLen);
+    for (let o = 0; o < outLen; o += hop) {
+      const src = Math.floor(o / factor);
+      for (let k = 0; k < G && o + k < outLen; k++) {
+        const v = src + k < n ? x[src + k] : 0;
+        y[o + k] += v * win[k]; norm[o + k] += win[k];
+      }
+    }
+    for (let k = 0; k < outLen; k++) if (norm[k] > 1e-3) y[k] /= norm[k];
+  }
+  return out;
+}
+function shiftedBuf(L, semis) {
+  L.shifted ||= {};
+  return (L.shifted[semis] ||= stretchBuf(L.buf, Math.pow(2, semis / 12)));
+}
+function loopEditDesc(tr, r, c) {
+  if (c > 3 || r < 1) return { tone: 'off' };
+  const key = LP_KEYS[c], o = LP_OPTS[key], idx = 7 - r;
+  const chosen = lpOf(tr)[key] === idx;
+  const dot = r === 7 && activeAuto(curTrack).some(a => a.k === 'lp' && a.i === key) ? ' \u2022' : '';
+  return { label: r === 7 ? `${o.name}${dot}\n${o.lab[idx]}` : o.lab[idx], tone: chosen ? 'sel' : 'white' };
+}
+function loopEditDown(tr, r, c) {
+  if (c > 3 || r < 1) return;
+  const key = LP_KEYS[c];
+  if (mods.clear) { fnKeys.CLEAR._markUsed?.(); return clearAuto(curTrack, a => a.k === 'lp' && a.i === key, LP_OPTS[key].name); }
+  commit();
+  lpOf(tr)[key] = 7 - r;
+  recordAuto(curTrack, { k: 'lp', i: key, v: 7 - r });
+  const L = loopSlots[tr.loop];
+  if (key === 'pitch' && L.buf && lpVal(tr, 'pitch')) shiftedBuf(L, lpVal(tr, 'pitch')); // prepare now, not on the beat
+  say(`${L.name} \u00b7 ${LP_OPTS[key].name} ${LP_OPTS[key].lab[7 - r]} \u00b7 from the next loop start`);
+}
+// B / SAVE: tap saves over the current project (the one last saved or loaded), or into the first
+// free slot if there is none; hold saves into the first free slot as a new project
+function quickSave(asNew) {
+  let slot = !asNew && currentProj >= 0 ? currentProj : -1;
+  if (slot < 0) for (let i = 0; i < PROJ_SLOTS; i++) if (!projects[i]) { slot = i; break; }
+  if (slot < 0) return say('All 48 project slots are full · delete one on the SONGS page (CLEAR + tap)');
+  saveProject(slot, !!projects[slot]);
+}
+function loadProject(slot) {
+  try {
+    commit(); // UNDO brings back what you had before loading
+    applyProject(JSON.parse(projects[slot].data));
+    currentProj = slot;
+    say(`Project ${slot + 1} loaded`);
+  } catch (e) { say(`Couldn't load project ${slot + 1}`); }
+  render();
+}
+async function deleteProject(slot) {
+  try {
+    await projStore.del(slot);
+    delete projects[slot];
+    if (currentProj === slot) currentProj = -1;
+    say(`Project ${slot + 1} deleted`);
+  } catch (e) { say(`Couldn't delete project ${slot + 1}`); }
+  render();
+}
+function projDesc(r, c) {
+  const slot = r * 8 + c;
+  if (slot >= PROJ_SLOTS) return { tone: 'off' };
+  if (!projects[slot]) return { label: `${slot + 1}`, tone: 'empty' };
+  return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' };
+}
+// LOAD page: tap a saved slot to load it. SAVE page: tap any slot to save there (replaces what was in it).
+// CLEAR + tap deletes a save on either page.
+function projDown(r, c) {
+  const slot = r * 8 + c;
+  if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say('That slot is empty'); return; }
+  if (projPage === 'save') { saveProject(slot, !!projects[slot]); return; }
+  if (!projects[slot]) { say('Nothing saved there · use B to save'); return; }
+  loadProject(slot);
+}
+/* ---------- XY pad (FX page 2): the whole 8×8 sets two effect settings at once ---------- */
+function xyOf(tr) {
+  if (tr.xy) return tr.xy;
+  const n = FX[tr.fxFocus].p.length;
+  return { x: { fx: tr.fxFocus, i: 0 }, y: { fx: tr.fxFocus, i: Math.min(1, n - 1) } };
+}
+const xyName = a => FX[a.fx].p[a.i];
+// With smoothing on, XY moves glide the sound to the new value instead of jumping
+// (time constant per amount: low / mid / high)
+const SMOOTH_TAU = [0, .08, .2, .5]; // by smoothing level 0–3
+const glides = new Map(); // "track:fx:slider" → { ti, fx, i, cur, target }
+function setFxParam(ti, fx, i, v, smooth) {
+  const tr = S.tracks[ti], key = `${ti}:${fx}:${i}`, g = glides.get(key);
+  const from = g ? g.cur : tr.fxP[fx][i];
+  tr.fxP[fx][i] = v;
+  recordAuto(ti, { k: 'p', fx, i, v });
+  if (smooth && prefs.smoothLvl > 0 && AC) { glides.set(key, { ti, fx, i, cur: from, target: v }); return; }
+  glides.delete(key);
+  applyFxLevels(ti, fx);
+}
+function applyFxLevels(ti, fx) {
+  const item = bus[ti] && bus[ti].chain.find(x => x.type === fx);
+  if (!item) return;
+  const L = [...S.tracks[ti].fxP[fx]];
+  glides.forEach(g => { if (g.ti === ti && g.fx === fx) L[g.i] = g.cur; });
+  item.fx.set(L);
+}
+let lastGlide = 0;
+function glideFrame(now) {
+  const dt = Math.min(.1, (now - lastGlide) / 1000);
+  lastGlide = now;
+  if (glides.size && dt > 0) {
+    const tau = SMOOTH_TAU[prefs.smoothLvl] || .001;
+    const k = 1 - Math.exp(-dt / tau);
+    const touched = new Set();
+    glides.forEach((g, key) => {
+      g.cur += (g.target - g.cur) * k;
+      if (Math.abs(g.target - g.cur) < .01) glides.delete(key);
+      touched.add(`${g.ti}:${g.fx}`);
+    });
+    touched.forEach(s => { const [ti, fx] = s.split(':').map(Number); applyFxLevels(ti, fx); });
+  }
+  requestAnimationFrame(glideFrame);
+}
+requestAnimationFrame(glideFrame);
+function xyDesc(r, c) {
+  const tr = S.tracks[curTrack], xy = xyOf(tr);
+  const col = tr.fxP[xy.x.fx][xy.x.i], row = 7 - tr.fxP[xy.y.fx][xy.y.i];
+  // axis names on the edges: X along the bottom-right corner, Y at the top-left corner
+  const axis = r === 7 && c === 7 ? `${xyName(xy.x)} →\nX ${FX[xy.x.fx].n}`
+             : r === 0 && c === 0 ? `↑ ${xyName(xy.y)}\nY ${FX[xy.y.fx].n}` : '';
+  const tone = r === row && c === col ? 'sel' : (r === row || c === col ? 'light' : 'empty');
+  const value = r === row && c === col ? `${col + 1}·${8 - row}` : '';
+  return { label: [axis, value].filter(Boolean).join('\n'), tone };
+}
+function padDesc(r, c) {
+  if (activeMode !== 0 || !page2 || settings || appSettings || projPage || midiPage) { xyPad = false; xyPick = null; }
+  if (midiPage) return midiDesc(r, c);
+  if (xyPad) return xyDesc(r, c);
+  if (projPage) return projDesc(r, c);
+  if (appSettings) return prefsDesc(r, c);
+  if (settings) return settingsDesc(r, c);
+  const tr = S.tracks[curTrack];
+  switch (activeMode) {
+    case 3: { // KEY/FRET
+      const n = keysNote(r, c);
+      if (n === null) return { tone: 'gap' };
+      const black = !page2 && r % 2 === 0;
+      return { label: noteName(n), tone: page2 ? (n % 12 === 0 ? 'dark' : 'light') : (black ? 'dark' : 'light') };
+    }
+    case 1: { // INST/SND
+      if (!page2) {
+        if (r <= 2) {
+          const i = r * 8 + c;
+          return { label: PRESETS[i].n, tone: tr.loop < 0 && soundFor(tr, tr.kitSel).preset === i ? 'sel' : 'white' };
+        }
+        if (r === 3) return { label: `KIT\n${KITS[c].n}`, tone: tr.loop < 0 && tr.split && tr.kitName === KITS[c].n ? 'sel' : 'light' };
+        if (r === 4) { // audio loop slots: your own files
+          const L = loopSlots[c];
+          if (!L) return { label: '+ WAV', tone: 'empty' };
+          return { label: `${L.name.slice(0, 10)}\n${L.bars} BAR`, tone: tr.loop === c ? 'sel' : 'white' };
+        }
+        if (r < 6) return { tone: 'off' };
+        // little keyboard: ALL on = one sound for every note; off = pick a note, then its sound
+        if (r === 7 && c === 7) return { label: 'ALL', tone: tr.split ? 'alldim' : 'sel' }; // off = dimmed blue
+        const k = miniKey(r, c);
+        if (k === null) return { tone: 'gap' };
+        const pc = k % 12;
+        if (!tr.split) return { label: NAMES[pc], tone: 'dim' };
+        const own = tr.kit[pc];
+        return { label: own ? PRESETS[own.preset].n : NAMES[pc], tone: pc === tr.kitSel ? 'sel' : (r === 6 ? 'dark' : 'light') };
+      }
+      const L = soundFor(tr, tr.kitSel).L, lvl = 7 - r;
+      const dot = activeAuto(curTrack).some(a => a.k === 'sp' && a.i === c) ? ' •' : '';
+      return { label: r === 7 ? SND_PARAMS[c] + dot : '', tone: lvl <= L[c] ? 'sel' : 'white' };
+    }
+    case 0: { // FX/EDIT
+      if (!page2) {
+        // column = track (lines up with T1–T8), rows are the effects
+        if (r === 0) { // top row: X, Y and XY PAD shortcuts for the selected track (open page 2)
+          if (c < 5) return { tone: 'off' }; // shortcuts sit on the right: X, Y, XY PAD in columns 6–8
+          const xy = xyOf(tr);
+          if (c === 5) return { label: `X · ${xyName(xy.x)}\n${FX[xy.x.fx].n}`, tone: 'white' };
+          if (c === 6) return { label: `Y · ${xyName(xy.y)}\n${FX[xy.y.fx].n}`, tone: 'white' };
+          return { label: 'XY PAD', tone: 'light' };
+        }
+        const t = S.tracks[c], fx = fxAt(r);
+        const dot = activeAuto(c).some(a => a.k === 'on' && a.fx === fx) ? ' •' : '';
+        return { label: FX[fx].n + dot, tone: t.fxOn[fx] ? 'sel' : (c === curTrack ? 'white' : 'empty') };
+      }
+      if (c === 6 && r >= 5) { // XY pad buttons: pick X, pick Y, switch the pad on
+        const xy = xyOf(tr);
+        const picking = a => xyPick && xyPick.axis === a ? 'sel' : 'white';
+        if (r === 5) return { label: `X · ${xyName(xy.x)}\n${FX[xy.x.fx].n}`, tone: picking('x') };
+        if (r === 6) return { label: `Y · ${xyName(xy.y)}\n${FX[xy.y.fx].n}`, tone: picking('y') };
+        return { label: 'XY PAD', tone: 'light' };
+      }
+      if (c === 7) { // right column: pick which effect these sliders edit (same order as page 1)
+        if (r === 0) return { tone: 'off' };
+        const fx = fxAt(r);
+        return { label: FX[fx].n, tone: fx === tr.fxFocus ? 'sel' : (tr.fxOn[fx] ? 'light' : 'empty') };
+      }
+      const p = FX[tr.fxFocus].p, P = tr.fxP[tr.fxFocus];
+      if (c >= p.length) return { tone: 'off' };
+      const lvl = 7 - r;
+      const dot = activeAuto(curTrack).some(a => a.k === 'p' && a.fx === tr.fxFocus && a.i === c) ? ' •' : '';
+      return { label: r === 7 ? p[c] + dot : '', tone: lvl <= P[c] ? 'sel' : 'white' };
+    }
+    case 4: { // MIX: column = track; fader on rows 1–6, then SOLO and MUTE
+      const t = S.tracks[c];
+      if (r === 6) return { label: 'SOLO', tone: t.solo ? 'soloon' : 'solooff' };
+      if (r === 7) return { label: 'MUTE', tone: t.mute ? 'muteon' : 'muteoff', faded: anySoloed() };
+      // the value sits on the fader's top lit cell
+      const dot = activeAuto(c).some(a => a.k === 'vol') ? ' •' : '';
+      // faders of silent tracks are dimmed: not soloed while anything is soloed, otherwise muted
+      return { label: r === 5 - t.vol ? `${volPct(t)}${dot}` : '', tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
+    }
+    case 2: { // CLIP/SEQ
+      if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
+        // column = track (lines up with T1–T8), rows 1–6 are clip slots, then SOLO and MUTE (bottom)
+        if (r === 6) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
+        if (r === 7) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
+        const t = S.tracks[c], cl = t.clips[r];
+        if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? `${r + 1}` : '', tone: 'copied' };
+        if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'empty' };
+        const isActive = t.active === r;
+        if (t.queued === r || (isActive && t.queued === 'stop')) return { label: `${r + 1}`, tone: 'queued' };
+        if (isActive && S.rec && c === curTrack) return { label: 'REC', tone: S.recStop ? 'recwait' : 'rec' };
+        if (isActive && !t.stopped) return { label: `${r + 1}`, tone: playing ? 'hot' : 'sel' };
+        return { label: `${r + 1}`, tone: 'dark' };
+      }
+      if (tr.loop >= 0 && loopSlots[tr.loop]) return loopEditDesc(tr, r, c); // audio loop track: loop edit
+      const cl = tr.clips[tr.active], L = stepLayout(cl);
+      if (r < L.kbStart) { // steps, 8 per row from row 3; pads past the clip's end are dark (hold one to extend)
+        const s = (r - 2) * 8 + c;
+        if (s >= L.len) return { label: '', tone: 'empty' };
+        const notes = cl ? cl.notes.filter(n => n.s === s) : [];
+        const auto = cl && (cl.auto || []).some(a => a.s === s); // • = FX automation on this step
+        const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s + 1}`) + (auto ? ' •' : '');
+        if (playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s) return { label: lab, tone: 'hot' };
+        if (tr.sel === s) return { label: lab, tone: 'sel' };
+        return { label: lab, tone: notes.length || auto ? 'dark' : 'white' };
+      }
+      const n = pianoNote(r - L.kbStart, c, L.pairs, L.base); // one-octave keyboard at the bottom
+      if (n === null) return { tone: 'gap' };
+      const inStep = cl && tr.sel >= 0 && cl.notes.some(x => x.s === tr.sel && x.n === n);
+      return { label: noteName(n), tone: inStep ? 'sel' : ((r - L.kbStart) % 2 === 0 ? 'dark' : 'light') };
+    }
+  }
+}
+
+function padDown(r, c) {
+  audio();
+  const id = r * 8 + c, d = padDesc(r, c);
+  if (d.tone === 'off' || d.tone === 'gap') return;
+  const tr = S.tracks[curTrack];
+  const info = { r, c };
+  held.set(id, info);
+  pads[r][c].classList.add('down');
+  if (midiPage) { midiDown(r, c); render(); return; }
+  if (projPage) { projDown(r, c); render(); return; }
+  if (appSettings) { prefsDown(r, c); render(); return; }
+  if (settings) { settingsDown(r, c); render(); return; }
+  switch (activeMode) {
+    case 3: {
+      const n = keysNote(r, c);
+      info.v = voice(curTrack, n, AC.currentTime);
+      info.rec = recordOn(curTrack, n);
+      tr.last = n;
+      break;
+    }
+    case 1: {
+      const kitNote = 48 + tr.kitSel;
+      if (mods.clear && !page2 && r === 4) { // CLEAR + tap a loop slot: remove that audio file
+        fnKeys.CLEAR._markUsed?.();
+        if (loopSlots[c]) removeLoop(c); else say('That loop slot is empty');
+        break;
+      }
+      if (mods.clear) { // CLEAR + tap: page 1 removes preset / kit automation, page 2 that slider's automation
+        fnKeys.CLEAR._markUsed?.();
+        if (!page2) clearAuto(curTrack, a => a.k === 'pre' || a.k === 'kit', 'Sound change');
+        else clearAuto(curTrack, a => a.k === 'sp' && a.i === c, SND_PARAMS[c]);
+        break;
+      }
+      if (!page2) {
+        if (r <= 2) {
+          commit();
+          if (tr.loop >= 0) { tr.loop = -1; stopLoop(tr); } // a sound and a loop are exclusive
+          const i = r * 8 + c;
+          if (tr.split) {
+            tr.kit[tr.kitSel] = { preset: i, L: [...PRESETS[i].L] };
+            recordAuto(curTrack, { k: 'pre', v: i, pc: tr.kitSel });
+            say(`${NAMES[tr.kitSel]} · ${pName(i)}`);
+          } else {
+            tr.preset = i; tr.L = [...PRESETS[i].L];
+            recordAuto(curTrack, { k: 'pre', v: i, pc: -1 });
+            say(`${labelOf(trackButtons[curTrack])} · ${pName(i)}`);
+          }
+          info.v = voice(curTrack, tr.split ? kitNote : tr.last, AC.currentTime);
+        } else if (r === 3) { // load a one-octave drum kit: a sound per note
+          commit();
+          if (tr.loop >= 0) { tr.loop = -1; stopLoop(tr); }
+          tr.kit = buildKit(KITS[c]); tr.kitName = KITS[c].n; tr.split = true; tr.kitSel = 0;
+          recordAuto(curTrack, { k: 'kit', v: c });
+          say(`${labelOf(trackButtons[curTrack])} · ${KITS[c].n} kit (C kick, D snare, F# hat…)`);
+          info.v = voice(curTrack, 48, AC.currentTime);
+        } else if (r === 4) { // audio loops: empty = load a file · loaded = play it on this track (tap again = off)
+          if (!loopSlots[c]) { loopTarget = c; loopFile.click(); break; }
+          tr.loop = tr.loop === c ? -1 : c;
+          if (tr.loop < 0) stopLoop(tr); else ensureLoopBuf(c);
+          const L = loopSlots[c], name = labelOf(trackButtons[curTrack]);
+          say(tr.loop === c ? `${name} plays ${L.name} (${L.bars} bar${L.bars > 1 ? 's' : ''}) · starts on the next bar${playing ? '' : ' after PLAY'}` : `${name} loop off`);
+        } else if (r === 7 && c === 7) { // ALL sits where the high C was
+          commit();
+          tr.split = !tr.split; tr.kitSel = 0;
+          say(tr.split ? 'Sound per note · pick a note, then a sound' : 'One sound for all notes');
+        } else {
+          const k = miniKey(r, c);
+          if (tr.split) tr.kitSel = k % 12;
+          info.v = voice(curTrack, 48 + k, AC.currentTime);
+        }
+      } else {
+        commit();
+        const snd = tr.split ? (tr.kit[tr.kitSel] ||= { preset: tr.preset, L: [...tr.L] }) : tr;
+        snd.L[c] = 7 - r;
+        recordAuto(curTrack, { k: 'sp', i: c, v: 7 - r, pc: tr.split ? tr.kitSel : -1 });
+        say(`${tr.split ? NAMES[tr.kitSel] + ' · ' : ''}${SND_PARAMS[c]} ${8 - r}/8`);
+        info.v = voice(curTrack, tr.split ? kitNote : tr.last, AC.currentTime);
+      }
+      break;
+    }
+    case 0: {
+      if (!page2 && r === 0) { // X / Y / XY PAD shortcuts: jump to page 2 ready to pick or play
+        if (c < 5) break;
+        page2 = true;
+        if (c === 7) { xyPad = true; say('XY pad on · go to another page to leave'); }
+        else {
+          const axis = c === 5 ? 'x' : 'y';
+          xyPick = { axis, used: false, latched: true };
+          say(`Tap a slider column for ${axis.toUpperCase()} (or an effect on the right first)`);
+        }
+        releaseAll();
+        break;
+      }
+      if (mods.clear && !xyPad && !(page2 && c === 6)) { // CLEAR + tap: remove that automation from the track's clip
+        fnKeys.CLEAR._markUsed?.();
+        if (!page2) { const fx = fxAt(r); clearAuto(c, a => a.k === 'on' && a.fx === fx, `${FX[fx].n} on/off`); }
+        else if (c === 7) { const fx = fxAt(r); clearAuto(curTrack, a => a.fx === fx, `All ${FX[fx].n}`); }
+        else { const fx = tr.fxFocus; clearAuto(curTrack, a => a.k === 'p' && a.fx === fx && a.i === c, `${FX[fx].n} ${FX[fx].p[c]}`); }
+        break;
+      }
+      if (!page2) {
+        // tap = effect on/off, hold = open its settings
+        const t = S.tracks[c], fx = fxAt(r);
+        curTrack = c;
+        renderTracks();
+        info.onTap = () => {
+          commit();
+          t.fxOn[fx] = !t.fxOn[fx];
+          t.fxFocus = fx;
+          buildFx(c);
+          recordAuto(c, { k: 'on', fx, v: t.fxOn[fx] });
+          say(`${labelOf(trackButtons[c])} · ${FX[fx].n} ${t.fxOn[fx] ? 'on' : 'off'}`);
+        };
+        info.hold = setTimeout(() => {
+          info.held = true;
+          t.fxFocus = fx;
+          page2 = true;
+          releaseAll();
+          render();
+          say(`${labelOf(trackButtons[c])} · ${FX[fx].n} settings`);
+        }, 600);
+      } else if (xyPad) {
+        const xy = xyOf(tr);
+        setFxParam(curTrack, xy.x.fx, xy.x.i, c, true);
+        setFxParam(curTrack, xy.y.fx, xy.y.i, 7 - r, true);
+        say(`X ${xyName(xy.x)} ${c + 1}/8 · Y ${xyName(xy.y)} ${8 - r}/8`);
+      } else if (xyPick && c < FX[tr.fxFocus].p.length) { // X/Y held + tap a slider column = assign it
+        const xy = tr.xy = xyOf(tr);
+        xy[xyPick.axis] = { fx: tr.fxFocus, i: c };
+        xyPick.used = true;
+        say(`${xyPick.axis.toUpperCase()} = ${FX[tr.fxFocus].n} ${xyName(xy[xyPick.axis])}`);
+        if (xyPick.latched) xyPick = null; // a tapped-on X/Y switches off after one pick
+      } else if (c === 6 && r >= 5) {
+        const xy = tr.xy = xyOf(tr), n = FX[tr.fxFocus].p.length;
+        if (r === 7) { xyPad = true; say('XY pad on · go to another page to leave'); }
+        else {
+          // X / Y: hold it and tap a slider column, or tap it once (it lights) and then tap a column.
+          // Tapping a lit X / Y again cancels.
+          const axis = r === 5 ? 'x' : 'y';
+          const wasOn = !!(xyPick && xyPick.latched && xyPick.axis === axis);
+          const pick = xyPick = { axis, used: false };
+          info.hold = 0;
+          info.onTap = () => {
+            if (pick.used) { if (xyPick === pick) xyPick = null; return; }
+            if (wasOn) { xyPick = null; say(`${axis.toUpperCase()} pick cancelled`); return; }
+            xyPick = { axis, used: false, latched: true };
+            say(`Tap a slider column for ${axis.toUpperCase()} (or an effect on the right first)`);
+          };
+        }
+      } else if (c === 7) {
+        tr.fxFocus = fxAt(r);
+        say(`Editing ${FX[tr.fxFocus].n}${tr.fxOn[tr.fxFocus] ? '' : ' (off)'}`);
+      } else {
+        commit();
+        const fx = tr.fxFocus;
+        tr.fxP[fx][c] = 7 - r;
+        const item = bus[curTrack].chain.find(x => x.type === fx);
+        if (item) item.fx.set(tr.fxP[fx]);
+        recordAuto(curTrack, { k: 'p', fx, i: c, v: 7 - r });
+        say(`${FX[fx].n} · ${FX[fx].p[c]} ${8 - r}/8`);
+      }
+      break;
+    }
+    case 4: {
+      const t = S.tracks[c], name = labelOf(trackButtons[c]);
+      if (r === 7) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
+      else if (r === 6) { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
+      else if (mods.clear) { clearAuto(c, a => a.k === 'vol', 'Volume'); break; }
+      else { commit(); t.vol = 5 - r; recordAuto(c, { k: 'vol', v: t.vol }); say(`${name} volume ${volPct(t)}%`); }
+      applyMix();
+      break;
+    }
+    case 2: {
+      if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) {
+        if (r >= 6) {
+          const t = S.tracks[c], name = labelOf(trackButtons[c]);
+          if (r === 7) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
+          else { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
+          applyMix();
+          break;
+        }
+        const tt = S.tracks[c];
+        if (mods.clear) { // CLEAR + tap a clip: delete it
+          if (!tt.clips[r]) { say('That slot is already empty'); break; }
+          commit();
+          tt.clips[r] = null;
+          if (tt.active === r) { tt.active = -1; tt.stopped = false; }
+          if (tt.queued === r) tt.queued = null;
+          say(`Clip ${r + 1} cleared from track ${labelOf(trackButtons[c])}`);
+          break;
+        }
+        if (mods.dup) { // DUP + tap a clip: copy it
+          fnKeys.DUP._markUsed?.();
+          if (!tt.clips[r]) { say('Nothing to copy in that slot'); break; }
+          clipboard = { clip: JSON.parse(JSON.stringify(tt.clips[r])), from: [c, r] };
+          say('Clip copied · tap a slot to place it');
+          break;
+        }
+        if (clipboard) { // waiting paste: tap a slot to place the copy there
+          const [fc, fr] = clipboard.from;
+          if (fc === c && fr === r) { clipboard = null; say('Copy cancelled'); break; }
+          commit();
+          tt.clips[r] = clipboard.clip;
+          clipboard = null;
+          say(`Clip placed in track ${labelOf(trackButtons[c])}, slot ${r + 1}`);
+          break;
+        }
+        curTrack = c;
+        renderTracks();
+        info.onTap = () => clipTap(c, r); // (track, slot)
+        info.hold = setTimeout(() => { // hold to delete a clip
+          info.held = true;
+          const t = S.tracks[c];
+          if (!t.clips[r]) return;
+          commit();
+          t.clips[r] = null;
+          if (t.active === r) { t.active = -1; t.stopped = false; }
+          if (t.queued === r) t.queued = null;
+          say(`Clip ${r + 1} deleted from track ${labelOf(trackButtons[c])}`);
+          render();
+        }, 700);
+      } else if (tr.loop >= 0 && loopSlots[tr.loop]) {
+        loopEditDown(tr, r, c);
+      } else if (r < stepLayout(tr.clips[tr.active]).kbStart) {
+        const s = (r - 2) * 8 + c;
+        // hold a step pad = the clip ends there (works past the current end too)
+        info.hold = setTimeout(() => {
+          info.held = true;
+          commit();
+          ensureClip(tr);
+          tr.clips[tr.active].len = s + 1;
+          if (tr.sel > s) tr.sel = -1;
+          say(`Clip ${tr.active + 1} length \u00b7 ${s + 1} steps`);
+          render();
+        }, 600);
+        // tap: empty step = add the last note \u00b7 a step with notes = select it \u00b7 the selected step = clear it
+        info.onTap = () => {
+          if (s >= clipLen(tr.clips[tr.active])) return say('Past the clip end \u00b7 hold a pad to set the length there');
+          commit();
+          ensureClip(tr);
+          const cl = tr.clips[tr.active], has = cl.notes.some(n => n.s === s);
+          if (!has) { cl.notes.push({ s, n: tr.last, len: 1 }); tr.sel = s; voice(curTrack, tr.last, AC.currentTime).stop(AC.currentTime + .2); }
+          else if (tr.sel !== s) tr.sel = s;
+          else { cl.notes = cl.notes.filter(n => n.s !== s); cl.auto = (cl.auto || []).filter(a => a.s !== s); say(`Step ${s + 1} cleared`); }
+        };
+      } else {
+        const L = stepLayout(tr.clips[tr.active]);
+        const n = pianoNote(r - L.kbStart, c, L.pairs, L.base);
+        info.v = voice(curTrack, n, AC.currentTime);
+        tr.last = n;
+        if (tr.sel >= 0) {
+          commit();
+          ensureClip(tr);
+          const cl = tr.clips[tr.active];
+          const i = cl.notes.findIndex(x => x.s === tr.sel && x.n === n);
+          if (i >= 0) cl.notes.splice(i, 1); else cl.notes.push({ s: tr.sel, n, len: 1 });
+        }
+      }
+      break;
+    }
+  }
+  render();
+}
+
+function padUp(r, c) {
+  const id = r * 8 + c, info = held.get(id);
+  if (!info) return;
+  held.delete(id);
+  pads[r][c].classList.remove('down');
+  if (info.v) info.v.stop(AC.currentTime);
+  if (info.rec) recordOff(info.rec);
+  if (info.hold !== undefined) {
+    clearTimeout(info.hold);
+    if (!info.held && info.onTap) info.onTap();
+  }
+  render();
+}
+/* ---------- swipe across pads ("draw") ----------
+   Each finger remembers the pad it is on; sliding onto another pad releases the old one and presses
+   the new one, on pages where that makes sense: keys and frets, sliders and faders. */
+const drag = new Map(); // pointerId → [r, c]
+// Swiping works on every page: each pad the finger enters is pressed as if tapped.
+// Only the SONGS page is left out, so a swipe can't load song after song.
+function slideOK(r, c) {
+  return !projPage;
+}
+// On/off state of a pad for painting swipes; null for pads that aren't simple switches (keys, sliders…)
+function onState(r, c) {
+  if (projPage || settings) return null;
+  if (appSettings) { const p = PREFS[r * 8 + c]; return p ? (p.value !== undefined ? prefs[p.key] === p.value : !!prefs[p.key]) : null; }
+  if (midiPage) {
+    if (midiOutPage) return null;
+    const v = midiValueAt(r), t = S.tracks[c];
+    if (v === null) return null;
+    return v === 'mute' ? t.inMute : v === 'arm' ? t.autoArm : v === 'clips' ? !t.clipMute : t.input === v;
+  }
+  const t = S.tracks[c];
+  if (activeMode === 0 && !page2 && r > 0) return !!t.fxOn[fxAt(r)];
+  if ((activeMode === 4 || (activeMode === 2 && !page2)) && r >= 6) return r === 6 ? t.solo : t.mute;
+  if (activeMode === 2 && page2 && r >= 2) {
+    const tr = S.tracks[curTrack], cl = tr.clips[tr.active], L = stepLayout(cl);
+    if (tr.loop >= 0 && loopSlots[tr.loop]) return null;
+    if (r >= L.kbStart || (r - 2) * 8 + c >= L.len) return null;
+    return !!cl && cl.notes.some(n => n.s === (r - 2) * 8 + c);
+  }
+  return null;
+}
+function padPointer(b, pr, pc) {
+  b.addEventListener('pointerdown', e => {
+    try { b.setPointerCapture?.(e.pointerId); } catch (_) {}
+    drag.set(e.pointerId, [pr, pc]);
+    padDown(pr, pc);
+  });
+  b.addEventListener('pointermove', e => {
+    const cur = drag.get(e.pointerId);
+    if (!cur) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const m = el && /^btn-([1-8])-([0-7])$/.exec(el.id);
+    if (!m) return;
+    const nr = +m[1] - 1, nc = +m[2];
+    if ((nr === cur[0] && nc === cur[1]) || !slideOK(cur[0], cur[1]) || !slideOK(nr, nc)) return;
+    padUp(cur[0], cur[1]);
+    // painting: the first on/off pad of a swipe sets the state, the rest are only switched to match it
+    if (cur.paint === undefined) cur.paint = onState(cur[0], cur[1]);
+    const next = [nr, nc];
+    next.paint = cur.paint;
+    drag.set(e.pointerId, next);
+    const st = onState(nr, nc);
+    if (st !== null && cur.paint !== null && st === cur.paint) return; // already as painted
+    padDown(nr, nc);
+  });
+  const end = e => {
+    const cur = drag.get(e.pointerId);
+    if (!cur) return;
+    drag.delete(e.pointerId);
+    padUp(cur[0], cur[1]);
+  };
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => b.addEventListener(t, end));
+  b.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); padDown(pr, pc); } });
+  b.addEventListener('keyup', e => { if (e.key === 'Enter') padUp(pr, pc); });
+  b.addEventListener('blur', () => padUp(pr, pc));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
+function releaseAll() { [...held.values()].forEach(i => padUp(i.r, i.c)); }
+
+/* ---------- computer keyboard as piano (every section; plays the selected track) ---------- */
+// White keys A S D F G H J K L ; '  → C D E F G A B C D E F
+// Black keys W E  T Y U  O P        → C# D#  F# G# A#  C# D#
+// Z / X = octave down / up   (§ = tap tempo, ] = click, \ = record, Space = play/stop)
+const KEYMAP = {
+  KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11,
+  KeyK: 12, KeyO: 13, KeyL: 14, KeyP: 15, Semicolon: 16, Quote: 17,
+};
+const keysDown = new Map();
+// Pads that show note n on the current page (to light them while the key is held)
+function padsForNote(n) {
+  const out = [];
+  if (settings || appSettings || projPage || midiPage) return out; // these pages show no keys
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    let m = null;
+    if (activeMode === 3) m = keysNote(r, c);
+    else if (activeMode === 2 && page2 && !(S.tracks[curTrack].loop >= 0 && loopSlots[S.tracks[curTrack].loop])) {
+      const L = stepLayout(S.tracks[curTrack].clips[S.tracks[curTrack].active]);
+      if (r >= L.kbStart) m = pianoNote(r - L.kbStart, c, L.pairs, L.base);
+    }
+    else if (activeMode === 1 && !page2 && r >= 6 && !(r === 7 && c === 7)) {
+      const k = miniKey(r, c);
+      if (k !== null && k % 12 === ((n % 12) + 12) % 12) { out.push(pads[r][c]); continue; }
+    }
+    if (m === n) out.push(pads[r][c]);
+  }
+  return out;
+}
+function keyNoteUp(code) {
+  const k = keysDown.get(code);
+  if (!k) return;
+  keysDown.delete(code);
+  k.vs.forEach(v => v.stop(AC.currentTime));
+  k.recs.forEach(recordOff);
+  k.lit.forEach(p => p.classList.remove('down'));
+}
+document.addEventListener('keydown', e => {
+  if (settings || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.code === 'KeyZ' || e.code === 'KeyX') { if (!e.repeat) shiftOct(e.code === 'KeyZ' ? -1 : 1); e.preventDefault(); return; }
+  if (!(e.code in KEYMAP)) return;
+  const targets = inputTargets('kbd'); // tracks listening to the computer keyboard right now (see MIDI)
+  if (!targets.length) return;
+  e.preventDefault();
+  if (e.repeat || keysDown.has(e.code)) return;
+  audio();
+  const n = 12 * (S.oct + 2) + KEYMAP[e.code] + keysTranspose();
+  const tr = S.tracks[curTrack];
+  tr.last = n;
+  const ownTrack = targets.includes(curTrack);
+  if (ownTrack && activeMode === 1 && tr.split) {
+    // INST/SND with a sound per note: the key also picks which note's sound you pick or edit
+    tr.kitSel = ((n % 12) + 12) % 12;
+    render();
+  }
+  const stepEdit = ownTrack && activeMode === 2 && page2 && tr.sel >= 0;
+  if (stepEdit) {
+    // step edit with a selected step: the key adds or removes that note in the step
+    commit();
+    ensureClip(tr);
+    const cl = tr.clips[tr.active];
+    const i = cl.notes.findIndex(x => x.s === tr.sel && x.n === n);
+    if (i >= 0) cl.notes.splice(i, 1); else cl.notes.push({ s: tr.sel, n, len: 1 });
+    render();
+  }
+  const recs = targets.map(ti => (stepEdit && ti === curTrack ? null : recordOn(ti, n)));
+  const lit = ownTrack ? padsForNote(n) : [];
+  lit.forEach(p => p.classList.add('down'));
+  keysDown.set(e.code, { vs: targets.map(ti => voice(ti, n, AC.currentTime)), recs, lit });
+});
+document.addEventListener('keyup', e => keyNoteUp(e.code));
+// Shortcut keys: 1–8 = track, § = TAP TEMPO (hold to stop the blink), ] = CLICK on/off, \ = REC on/off
+const isTapKey = e => e.key === '§' || e.code === 'IntlBackslash' || e.code === 'Backquote';
+window.addEventListener('keydown', e => {
+  if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
+  // Bottom letter row, from / leftwards (same order as the right column, bottom up):
+  // / KEYS · . CLIPS · , SND · M MIX · N FX · B MIDI
+  const SECTION_KEYS = { Slash: 3, Period: 2, Comma: 1, KeyM: 4, KeyN: 0, KeyB: 'midi' };
+  if (e.code in SECTION_KEYS) {
+    e.preventDefault(); e.stopPropagation();
+    if (!e.repeat) { const s = SECTION_KEYS[e.code]; s === 'midi' ? openMidi() : pickSection(s); }
+    return;
+  }
+  const digit = /^Digit([1-8])$/.exec(e.code);
+  if (digit) { // 1–8 = select track 1–8
+    e.preventDefault(); e.stopPropagation();
+    if (!e.repeat) { selectTrack(+digit[1] - 1); say(`Track ${labelOf(trackButtons[curTrack])}`); }
+    return;
+  }
+  const tapKey = isTapKey(e);
+  if (!tapKey && e.code !== 'BracketRight' && e.code !== 'Backslash') return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.repeat) return;
+  audio();
+  if (tapKey) fnKeys.TAP._press();
+  else if (e.code === 'BracketRight') { S.click = !S.click; syncFnKeys(); say(S.click ? 'Click on' : 'Click off'); }
+  else setRec(!S.rec);
+}, true);
+window.addEventListener('keyup', e => { if (isTapKey(e)) fnKeys.TAP._release(); }, true);
+// Space = PLAY/STOP everywhere (captured before focused buttons see it; Enter still presses a focused button)
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.repeat) return;
+  audio();
+  if (playing) { stopPlay(); if (S.rec) setRec(false); } else startPlay();
+}, true);
+window.addEventListener('keyup', e => { if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); e.stopPropagation(); } }, true);
+window.addEventListener('blur', () => [...keysDown.keys()].forEach(keyNoteUp));
+
+function clipTap(r, c) {
+  const t = S.tracks[r];
+  if (!t.clips[c]) { // empty slot: new clip, start recording into it
+    commit();
+    t.clips[c] = { notes: [] };
+    t.active = c; t.stopped = false; t.queued = null;
+    curTrack = r;
+    setRec(true);
+    return;
+  }
+  // tapping the clip that is recording: stop recording at the start of the next bar (tap again to cancel)
+  if (S.rec && r === curTrack && t.active === c && !t.stopped) {
+    if (!playing) { setRec(false); return; }
+    S.recStop = !S.recStop;
+    say(S.recStop ? 'Recording stops at the next bar' : 'Recording continues');
+    return;
+  }
+  if (!playing) {
+    if (t.active === c) t.stopped = !t.stopped; else { t.active = c; t.stopped = false; }
+  } else if (t.queued === c || (t.active === c && t.queued === 'stop')) t.queued = null;
+  else if (t.active === c && !t.stopped) t.queued = 'stop';
+  else t.queued = c;
+}
+
+/* ============================== RENDER ============================== */
+const TONES = ['white', 'light', 'dark', 'dim', 'alldim', 'armon', 'armoff', 'copied', 'muteoff', 'muteon', 'solooff', 'soloon', 'empty', 'emptycur', 'sel', 'hot', 'rec', 'recwait', 'queued', 'gap', 'off'];
+function renderPads() {
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const b = pads[r][c], d = padDesc(r, c);
+    TONES.forEach(t => b.classList.remove(t));
+    if (d.tone !== 'white') b.classList.add(d.tone);
+    b.classList.toggle('faded', !!d.faded);
+    if (b.textContent !== (d.label || '')) b.textContent = d.label || '';
+    const inactive = d.tone === 'off' || d.tone === 'gap';
+    b.tabIndex = inactive ? -1 : 0;
+    b.setAttribute('aria-hidden', inactive ? 'true' : 'false');
+  }
+}
+function renderTracks() {
+  trackButtons.forEach((t, j) => {
+    t.setAttribute('aria-checked', String(j === curTrack));
+    t.tabIndex = j === curTrack ? 0 : -1;
+    const tr = S.tracks[j], lp = tr.loop >= 0 && loopSlots[tr.loop];
+    const name = lp ? lp.name : tr.split && tr.kitName ? tr.kitName : pName(tr.preset);
+    const el = t.querySelector('.inst');
+    if (el && el.textContent !== name) el.textContent = name;
+  });
+}
+// SETTINGS is part of the section group: while it's open no section is lit
+function openSettings() { appSettings = true; projPage = false; midiPage = false; settings = false; releaseAll(); render(); }
+function openProjects(mode) { projPage = mode; appSettings = false; midiPage = false; settings = false; releaseAll(); render(); }
+// Section buttons (and their keys): pick a section; the selected one again flips to its page 2
+function pickSection(i) {
+  if (settings || appSettings || projPage || midiPage) { settings = false; appSettings = false; projPage = false; midiPage = false; activeMode = i; page2 = false; releaseAll(); render(); return; }
+  if (i === activeMode) page2 = !page2; else { activeMode = i; page2 = false; }
+  releaseAll(); render();
+}
+function openMidi() { midiOutPage = midiPage ? !midiOutPage : false; midiPage = true; appSettings = false; projPage = false; settings = false; releaseAll(); startMidi(); render(); }
+function renderModes() {
+  modeButtons.forEach((m, j) => {
+    m.setAttribute('aria-checked', String(j === activeMode && !appSettings && !projPage && !midiPage));
+    m.classList.toggle('bright', page2 && j === activeMode && !appSettings && !projPage && !midiPage);
+    m.tabIndex = j === activeMode ? 0 : -1;
+  });
+}
+function syncFnKeys() {
+  fnKeys.PLAY.setAttribute('aria-pressed', String(playing));
+  fnKeys.PLAY.classList.toggle('recplay', S.rec);
+  fnKeys.CLICK.setAttribute('aria-pressed', String(S.click));
+  fnKeys.REC.setAttribute('aria-pressed', String(S.rec));
+  fnKeys.CLICK.classList.toggle('settings', settings);
+  fnKeys.SET2.setAttribute('aria-pressed', String(appSettings));
+  fnKeys.MIDI.setAttribute('aria-pressed', String(midiPage));
+  fnKeys.MIDI.classList.toggle('bright', midiPage && midiOutPage);
+  fnKeys.LOAD.setAttribute('aria-pressed', String(projPage === 'load'));
+  fnKeys.TAP.querySelector('.small').textContent = `${S.bpm} BPM`;
+}
+const PAGE_NAMES = [['Pick effect', 'Effect settings'], ['Pick sound', 'Edit sound'], ['Clips', 'Step edit'], ['Keys', 'Fret'], ['Faders', 'Faders']];
+function renderScreen() {
+  const tr = S.tracks[curTrack];
+  const snd = soundFor(tr, tr.kitSel);
+  let main = `${labelOf(trackButtons[curTrack])} · ${tr.split ? NAMES[tr.kitSel] + ': ' : ''}${pName(snd.preset)}`;
+  const fxNames = FX.filter((f, i) => tr.fxOn[i]).map(f => f.n);
+  if (fxNames.length) main += ` · ${fxNames.join('+')}`;
+  document.getElementById('scrMain').textContent = main;
+  const right = document.getElementById('scrRight');
+  right.innerHTML = '';
+  if (S.rec) { const s = document.createElement('span'); s.className = 'rec'; s.textContent = '● REC  '; right.append(s); }
+  right.append(`${playing ? '▶' : '■'} ${S.bpm} BPM`);
+  let sub = `${labelOf(modeButtons[activeMode]).replace(/\n/g, '')} · ${PAGE_NAMES[activeMode][page2 ? 1 : 0]}`;
+  if (activeMode === 0 && page2) sub += ` · ${FX[tr.fxFocus].n}${tr.fxOn[tr.fxFocus] ? '' : ' (off)'}`;
+  if (activeMode === 0 && !page2) sub += ' · tap = on/off, hold = settings';
+  if (activeMode === 2 && page2 && tr.loop >= 0 && loopSlots[tr.loop]) sub = `CLIPS \u00b7 Loop edit \u00b7 ${loopSlots[tr.loop].name} \u00b7 SPEED \u00b7 START \u00b7 LENGTH \u00b7 PITCH`;
+  else if (activeMode === 2 && page2) sub += tr.active >= 0 && tr.clips[tr.active] ? ` · clip ${tr.active + 1} · ${clipLen(tr.clips[tr.active])} steps` + (tr.sel >= 0 ? ` · step ${tr.sel + 1}` : '') : ' · tap a step to start a clip';
+  if (appSettings) sub = 'Settings · pick a section to leave';
+  if (xyPick) sub = `Hold ${xyPick.axis.toUpperCase()} and tap a slider column to control it (or an effect on the right first)`;
+  if (xyPad && activeMode === 0 && page2) {
+    const xy = xyOf(tr);
+    sub = `XY pad · X ${FX[xy.x.fx].n} ${xyName(xy.x)} · Y ${FX[xy.y.fx].n} ${xyName(xy.y)} · change page to leave`;
+  }
+  if (midiPage) sub = midiStatus === 'ok'
+    ? (midiOutPage ? `MIDI out · pick each track's output (channel = track) · ${midiOutputs.length ? midiOutputs.length + ' output(s) found' : 'no MIDI outputs connected'}`
+                   : `MIDI in · pick each track's input · ${midiInputs.length ? midiInputs.length + ' device(s) found' : 'no MIDI devices connected'} · tap MIDI again for outputs`)
+    : midiStatus === 'asking' ? 'MIDI · asking for access…' : 'MIDI · MIDI devices are not available in this browser view (KBD still works)';
+  if (projPage === 'load') sub = `Songs (${projStore.where}) · tap a saved song to load it · CLEAR+tap = delete`;
+  if (projPage === 'save') sub = `Save project (${projStore.where}) · tap a slot (replaces it) · CLEAR+tap = delete`;
+  if (clipboard) sub = 'Clip copied · tap a slot on CLIPS to place it · press DUP to cancel';
+  if (mods.dup) sub = 'DUP · tap a clip to copy it';
+  if (mods.clear) sub = 'CLEAR · tap a clip to delete it, or an automated fader / effect (•)';
+  if (settings) sub = `Click settings · swing ${swingPct()}% · hold CLICK or pick a section to leave`;
+  document.getElementById('scrSub').textContent = message || sub;
+  document.getElementById('scrRight2').textContent = `Oct ${S.oct}` + (S.transpose ? ` · ${S.transpose > 0 ? '+' : ''}${S.transpose}` : '');
+}
+function render() { renderPads(); renderTracks(); renderModes(); renderScreen(); syncFnKeys(); }
+
+// Remember default names and apply saved custom names (not TAP TEMPO: fast taps would open rename)
+freeBlink();
+grid.querySelectorAll('.btn.fn, .btn.track, .btn.mode, .btn.nav').forEach(b => {
+  b.dataset.default = labelOf(b);
+  if (customLabels[b.id] && b !== fnKeys.TAP) setLabel(b, customLabels[b.id]);
+});
+render();
+</script>
+
+</body>
+</html>
