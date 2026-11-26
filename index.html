@@ -171,7 +171,11 @@
   .io .themepick { display: flex; gap: 6px; align-items: center; min-width: 0; }
   .io .themepick select { max-width: 100%; min-width: 0; }
   .io .edhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; font-weight: 600; }
-  .io .edrow { display: grid; grid-template-columns: 1fr 22px 82px 54px; gap: 6px; align-items: center; margin: 5px 0; }
+  .io .edrow { display: grid; grid-template-columns: 1fr 22px 82px 54px 24px; gap: 6px; align-items: center; margin: 5px 0; }
+  .io .edrow button.rs { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; background: none; border: 0; color: var(--screen-dim); cursor: pointer; border-radius: 6px; }
+  .io .edrow button.rs:hover:not(:disabled) { color: var(--screen-ink); background: #2a2a2a; }
+  .io .edrow button.rs:disabled { opacity: .25; cursor: default; }
+  .io .edrow button.rs svg { width: 15px; height: 15px; }
   .io .edrow > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .io .edrow .sw { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #444;
     background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%), linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%);
@@ -311,10 +315,11 @@
   <form method="dialog" class="io">
     <header><h2 id="ioTitle">Settings</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
     <div id="ioEd" hidden>
-      <div class="edhead"><button type="button" id="ioEdBack">&larr; Back</button><span id="ioEdName"></span><button type="button" id="ioEdReset" class="link">Reset</button></div>
-      <p class="note">The theme's seven colours, as hex + opacity; every button uses one of them. Changes show at once and are kept as the <b>Custom</b> theme; the Launchpad gets the nearest LED colour.</p>
-      <div class="edrow note"><span></span><span></span><span>hex</span><span>opacity %</span></div>
+      <div class="edhead"><button type="button" id="ioEdBack">&larr; Back</button><span id="ioEdName"></span></div>
+      <p class="note">The theme's colours, as hex + opacity; every button uses one of them. Changes show at once and are kept as the <b>Custom</b> theme; the Launchpad gets the nearest LED colour. &#8634; puts one colour back to its default.</p>
+      <div class="edrow note"><span></span><span></span><span>hex</span><span>opacity %</span><span></span></div>
       <div id="ioEdList"></div>
+      <div class="btns"><button type="button" id="ioEdReset">Reset all to defaults</button></div>
     </div>
     <div id="ioMain">
     <section>
@@ -368,7 +373,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.70'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.71'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3353,7 +3358,7 @@ function ensureCustom() {
   if (prefs.theme === 'custom' && THEMES.custom) return THEMES.custom;
   const base = theme, tokens = JSON.parse(JSON.stringify(currentTokens()));
   THEMES.custom = tokenTheme(`Custom (from ${base.name})`, tokens);
-  prefs.customTheme = { name: THEMES.custom.name, tokens }; prefs.theme = 'custom'; savePrefs();
+  prefs.customTheme = { name: THEMES.custom.name, tokens, base: JSON.parse(JSON.stringify(tokens)) }; prefs.theme = 'custom'; savePrefs();
   ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, th]) => [id, th.name]), 'custom');
   applyTheme('custom');
   return THEMES.custom;
@@ -3365,9 +3370,17 @@ function normHex(v) {
   const h = m[1].length === 3 ? m[1].split('').map(x => x + x).join('') : m[1];
   return '#' + h.toLowerCase();
 }
+// the colours a Custom theme started from (its defaults); older Custom themes fall back to Mono's
+const edDefaults = () => (prefs.customTheme && prefs.customTheme.base) || MONO_TOKENS;
+const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>';
+function edResetToken(tk) {
+  const def = edDefaults()[tk]; if (!def || prefs.theme !== 'custom') return;
+  prefs.customTheme.tokens[tk] = [...def];
+  THEMES.custom = tokenTheme(prefs.customTheme.name, prefs.customTheme.tokens); savePrefs(); applyTheme('custom'); edRender();
+}
 function edRender() {
   $io('ioEdName').textContent = theme.name;
-  $io('ioEdReset').hidden = prefs.theme !== 'custom'; // only your own edits can be reset
+  $io('ioEdReset').disabled = prefs.theme !== 'custom'; // only your own edits can be reset
   const tokens = currentTokens();
   $io('ioEdList').replaceChildren(...TOKENS.map(([tk, label]) => {
     const c = rgbaOf((() => { const e = document.createElement('i'); e.style.color = tokens[tk][0]; edProbeBox.append(e); const v = getComputedStyle(e).color; e.remove(); return v; })());
@@ -3389,7 +3402,7 @@ function edRender() {
       const tk2 = prefs.customTheme.tokens;
       tk2[tk] = [cssOf(h, a), tk === 'played' || tk === 'space' ? 0 : ledNearest(h, a)];
       THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
-      $io('ioEdName').textContent = theme.name; $io('ioEdReset').hidden = false;
+      $io('ioEdName').textContent = theme.name; $io('ioEdReset').disabled = false; rs.disabled = false;
     };
     hx.addEventListener('input', () => { commit(); const h = normHex(hx.value); if (h) pick.value = h; });
     hx.addEventListener('blur', () => { const h = normHex(hx.value); if (h) hx.value = h; }); // tidy to #rrggbb when you leave the field
@@ -3397,7 +3410,12 @@ function edRender() {
     pick.addEventListener('input', () => { hx.value = pick.value; commit(); });
     op.addEventListener('input', () => { commit(); scrubFill(op); }); show();
     scrubbable(op); scrubFill(op);
-    row.append(name, sw, hx, op); return row;
+    const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'rs'; rs.innerHTML = RESET_ICON;
+    rs.title = rs.ariaLabel = `Reset ${label} to its default`;
+    const def = edDefaults()[tk];
+    rs.disabled = prefs.theme !== 'custom' || !def || JSON.stringify(def[0]) === JSON.stringify(tokens[tk][0]);
+    rs.addEventListener('click', () => edResetToken(tk));
+    row.append(name, sw, hx, op, rs); return row;
   }));
 }
 // opacity fields work as sliders: drag left/right (or up/down) to change, a plain click still lets you type
