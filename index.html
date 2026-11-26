@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.25'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.26'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1978,7 +1978,8 @@ function padDesc(r, c) {
       }
       const L = soundFor(tr, tr.kitSel).L, lvl = 7 - r;
       const dot = activeAuto(curTrack).some(a => a.k === 'sp' && a.i === c) ? ' •' : '';
-      return { label: lvl === L[c] ? `${SND_PARAMS[c]} ${sliderPct(L[c])}${dot}` : '', tone: lvl <= L[c] ? 'sel' : 'white' };
+      // every pad shows the value it sets; the current one also shows the name
+      return { label: lvl === L[c] ? `${SND_PARAMS[c]} ${sliderPct(L[c])}${dot}` : `${sliderPct(lvl)}`, tone: lvl <= L[c] ? 'sel' : 'white' };
     }
     case 0: { // FX/EDIT
       if (!page2) {
@@ -2014,7 +2015,8 @@ function padDesc(r, c) {
       const lvl = 7 - r;
       const dot = activeAuto(curTrack).some(a => a.k === 'p' && a.fx === tr.fxFocus && a.i === c) ? ' •' : '';
       const sy = syncOf(tr.fxFocus, c); // time sliders show note lengths (1/16, 1/8 …), the others a percentage
-      return { label: lvl === P[c] ? `${p[c]} ${sy ? noteLab(sy[P[c]]) : sliderPct(P[c])}${dot}` : '', tone: lvl <= P[c] ? 'sel' : 'white' };
+      const val = v => sy ? noteLab(sy[v]) : sliderPct(v);
+      return { label: lvl === P[c] ? `${p[c]} ${val(P[c])}${dot}` : `${val(lvl)}`, tone: lvl <= P[c] ? 'sel' : 'white' };
     }
     case 4: { // MIX: column = track; fader on rows 1–6, then SOLO and MUTE
       const t = S.tracks[c];
@@ -2023,7 +2025,7 @@ function padDesc(r, c) {
       // the value sits on the fader's top lit cell
       const dot = activeAuto(c).some(a => a.k === 'vol') ? ' •' : '';
       // faders of silent tracks are dimmed: not soloed while anything is soloed, otherwise muted
-      return { label: r === 5 - t.vol ? `VOL ${volPct(t)}${dot}` : '', tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
+      return { label: r === 5 - t.vol ? `VOL ${volPct(t)}${dot}` : `${Math.round(VOL[5 - r] * 100)}`, tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
     }
     case 2: { // CLIP/SEQ
       if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
