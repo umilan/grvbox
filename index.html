@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.26'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.27'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -381,7 +381,7 @@ function buildKit(k) {
 // One effect per track; parameters are levels 0–7 (vertical sliders on FX/EDIT page 2)
 const FX = [
   { n: 'OFF', p: [], d: [] },
-  { n: 'DELAY', p: ['MIX', 'TIME', 'FEEDBACK', 'TONE'], d: [3, 2, 3, 4] },
+  { n: 'DELAY', p: ['MIX', 'TIME', 'FEEDBACK', 'TONE'], d: [3, 4, 3, 4] }, // TIME default 1/8.
   { n: 'REVERB', p: ['MIX', 'SIZE', 'DAMPING'], d: [3, 4, 3] },
   { n: 'DRIVE', p: ['MIX', 'AMOUNT', 'TONE', 'LEVEL'], d: [7, 3, 5, 4] },
   { n: 'FILTER', p: ['CUTOFF', 'RESO-\nNANCE', 'RATE', 'DEPTH'], d: [4, 3, 2, 0] },
@@ -791,13 +791,13 @@ function curve(fn) { const n = 2048, a = new Float32Array(n); for (let i = 0; i 
 // Tempo-synced time sliders: the 8 steps are note lengths in 16ths (1 = 1/16, 4 = 1/4 = one beat, 16 = one bar).
 // DELAY TIME = echo spacing; the RATE sliders = one LFO cycle.
 const SYNC = {
-  DELAY: { 1: [1, 2, 3, 4, 6, 8, 12, 16] },
+  DELAY: { 1: [.25, .5, 1, 2, 3, 4, 8, 16] }, // 1/64 … 1 BAR
   FILTER: { 2: [64, 32, 16, 8, 4, 2, 1, .5] },
   CHORUS: { 1: [64, 32, 16, 8, 4, 2, 1, .5] },
   TREM: { 0: [8, 4, 3, 2, 4 / 3, 1, 2 / 3, .5] },
 };
 const NOTE_LAB = [[64, '4 BAR'], [32, '2 BAR'], [16, '1 BAR'], [12, '1/2.'], [8, '1/2'], [6, '1/4.'], [4, '1/4'], [3, '1/8.'],
-  [2, '1/8'], [4 / 3, '1/8T'], [1, '1/16'], [2 / 3, '1/16T'], [.5, '1/32']];
+  [2, '1/8'], [4 / 3, '1/8T'], [1, '1/16'], [2 / 3, '1/16T'], [.5, '1/32'], [.25, '1/64']];
 const noteLab = n => (NOTE_LAB.find(([v]) => Math.abs(v - n) < .01) || [, `${n}/16`])[1];
 const syncOf = (fx, i) => (SYNC[FX[fx].n] || {})[i];
 // one LFO cycle of n 16ths at the current tempo, in Hz
