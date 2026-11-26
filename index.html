@@ -307,12 +307,12 @@ function buildKit(k) {
 // One effect per track; parameters are levels 0–7 (vertical sliders on FX/EDIT page 2)
 const FX = [
   { n: 'OFF', p: [], d: [] },
-  { n: 'DELAY', p: ['MIX', 'TIME', 'FDBK', 'TONE'], d: [3, 2, 3, 4] },
-  { n: 'REVERB', p: ['MIX', 'SIZE', 'DAMP'], d: [3, 4, 3] },
-  { n: 'DRIVE', p: ['MIX', 'AMT', 'TONE', 'LVL'], d: [7, 3, 5, 4] },
-  { n: 'FILTER', p: ['CUT', 'RES', 'RATE', 'DPTH'], d: [4, 3, 2, 0] },
-  { n: 'CHORUS', p: ['MIX', 'RATE', 'DPTH'], d: [4, 2, 3] },
-  { n: 'TREM', p: ['RATE', 'DPTH'], d: [3, 4] },
+  { n: 'DELAY', p: ['MIX', 'TIME', 'FEEDBACK', 'TONE'], d: [3, 2, 3, 4] },
+  { n: 'REVERB', p: ['MIX', 'SIZE', 'DAMPING'], d: [3, 4, 3] },
+  { n: 'DRIVE', p: ['MIX', 'AMOUNT', 'TONE', 'LEVEL'], d: [7, 3, 5, 4] },
+  { n: 'FILTER', p: ['CUTOFF', 'RESO-\nNANCE', 'RATE', 'DEPTH'], d: [4, 3, 2, 0] },
+  { n: 'CHORUS', p: ['MIX', 'RATE', 'DEPTH'], d: [4, 2, 3] },
+  { n: 'TREM', p: ['RATE', 'DEPTH'], d: [3, 4] },
   { n: 'CRUSH', p: ['MIX', 'BITS'], d: [7, 3] },
 ];
 
@@ -1721,7 +1721,7 @@ function xyOf(tr) {
   const n = FX[tr.fxFocus].p.length;
   return { x: { fx: tr.fxFocus, i: 0 }, y: { fx: tr.fxFocus, i: Math.min(1, n - 1) } };
 }
-const xyName = a => FX[a.fx].p[a.i];
+const xyName = a => FX[a.fx].p[a.i].replace('-\n', ''); // one-line name for the XY labels
 // With smoothing on, XY moves glide the sound to the new value instead of jumping
 // (time constant per amount: low / mid / high)
 const SMOOTH_TAU = [0, .08, .2, .5]; // by smoothing level 0–3
