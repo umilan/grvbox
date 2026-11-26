@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.20'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.21'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2054,7 +2054,7 @@ function padDown(r, c) {
       break;
     }
     case 1: {
-      const kitNote = 48 + tr.kitSel;
+      const kitNote = 12 * (S.oct + 2) + tr.kitSel;
       if (mods.clear && !page2 && r === 4) { // CLEAR + tap a loop slot: remove that audio file
         fnKeys.CLEAR._markUsed?.();
         if (loopSlots[c]) removeLoop(c); else say('That loop slot is empty');
@@ -2101,7 +2101,7 @@ function padDown(r, c) {
         } else {
           const k = miniKey(r, c);
           if (tr.split) tr.kitSel = k % 12;
-          info.v = voice(curTrack, 48 + k, AC.currentTime);
+          info.v = voice(curTrack, 12 * (S.oct + 2) + k, AC.currentTime); // follows ↓ ↑ (octave 2 = C3)
         }
       } else {
         commit();
