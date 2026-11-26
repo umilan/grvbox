@@ -106,7 +106,7 @@
     border-radius: 4px;
     padding: 8px 12px;
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: 2px 12px;
     font-size: clamp(11px, 1.6vmin, 14px);
     font-variant-numeric: tabular-nums;
@@ -118,6 +118,16 @@
   .screen .right { text-align: right; white-space: nowrap; }
   .screen .rec { color: var(--rec-dim-ink); font-weight: 600; }
   .recflash .screen .rec { color: var(--rec); }
+  .screen .main { grid-column: 1; grid-row: 1; }
+  .screen .sub { grid-column: 1; }
+  .screen .right { grid-column: 3; }
+  .screen .hw { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: flex; gap: 4px; }
+  .screen .hw button {
+    appearance: none; border: 1px solid var(--screen-dim); background: transparent; color: var(--screen-dim);
+    border-radius: 999px; padding: 3px 9px; font: 600 clamp(9px, 1.3vmin, 12px)/1.2 var(--font); letter-spacing: .04em; cursor: pointer;
+  }
+  .screen .hw button[aria-checked="true"] { background: var(--fn-on); border-color: var(--fn-on); color: var(--fn-on-ink); }
+  .screen .hw button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .grid {
     width: 100%;
     aspect-ratio: 1;
@@ -222,6 +232,10 @@
 <div class="unit">
   <header class="screen" id="screen" aria-live="polite">
     <div class="main" id="scrMain">T1 · KICK</div>
+    <div class="hw" id="hwPick" role="radiogroup" aria-label="Controller layout">
+      <button type="button" id="hw-pro" role="radio" data-hw="pro">LP PRO</button>
+      <button type="button" id="hw-mini" role="radio" data-hw="mini">LP MINI</button>
+    </div>
     <div class="right" id="scrRight">120 BPM</div>
     <div class="sub" id="scrSub">KEYS · Keys</div>
     <div class="right sub" id="scrRight2">Oct 2</div>
@@ -231,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.0'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.1'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -381,6 +395,8 @@ function refreshMidiInputs(access) {
     midiInputs.push({ id: inp.id, name: inp.name || 'MIDI in', slot });
     inp.onmidimessage = e => onMidi(slot, e.data);
   });
+  const lp = midiInputs.find(m => /launchpad/i.test(m.name));
+  if (lp) setLayout(/mini/i.test(lp.name) ? 'mini' : 'pro', `${lp.name} connected`);
   midiOutputs = [];
   access.outputs.forEach(o => { if (o.state !== 'disconnected') midiOutputs.push({ id: o.id, name: o.name || 'MIDI out', port: o }); });
   if (midiPage) render();
@@ -2458,6 +2474,39 @@ function renderScreen() {
   document.getElementById('scrRight2').textContent = `Oct ${S.oct}` + (S.transpose ? ` · ${S.transpose > 0 ? '+' : ''}${S.transpose}` : '') + ` · ${APP_VERSION}`;
 }
 function render() { renderPads(); renderTracks(); renderModes(); renderScreen(); syncFnKeys(); }
+
+/* ---------- controller layouts: LP PRO (10\u00d710) and LP MINI (9\u00d79) ----------
+   Every grid cell was created in order (row 0\u20139, column -1\u20138), so its logical spot is known from its index.
+   LP MINI has no left or bottom button rows: the A\u2013H keys take the first pad column (G is dropped),
+   tracks 1\u20138 take the bottom pad row, KEYS moves to the bottom-right corner, and the pad area shows
+   the top-left 7\u00d77 of the usual 8\u00d78. */
+[...grid.children].forEach((el, i) => { el.dataset.r = Math.floor(i / 10); el.dataset.c = (i % 10) - 1; });
+function placeOf(r, c) {
+  if (prefs.layout !== 'mini') return [r + 1, c + 2];
+  if (r === 0) return c >= 0 && c <= 7 ? [1, c + 1] : null;            // top row of round buttons
+  if (r === 9) return c >= 0 && c <= 7 ? [9, c + 1] : null;            // tracks 1\u20138
+  if (c === 8) return r <= 7 ? [r + 1, 9] : [9, 9];                    // right column; KEYS to the corner
+  if (c === -1) return r <= 6 ? [r + 1, 1] : r === 8 ? [8, 1] : null;  // A\u2013F, then H SETTINGS
+  return r <= 7 && c <= 6 ? [r + 1, c + 2] : null;                     // 7\u00d77 pads
+}
+function applyLayout() {
+  const n = prefs.layout === 'mini' ? 9 : 10;
+  grid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+  [...grid.children].forEach(el => {
+    const pos = placeOf(+el.dataset.r, +el.dataset.c);
+    el.hidden = !pos || el.classList.contains('corner');
+    if (pos) { el.style.gridRow = pos[0]; el.style.gridColumn = pos[1]; }
+  });
+  document.querySelectorAll('#hwPick button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.hw === (prefs.layout || 'pro'))));
+}
+function setLayout(hw, why) {
+  if ((prefs.layout || 'pro') === hw) return;
+  prefs.layout = hw; savePrefs(); applyLayout();
+  say(`Layout \u00b7 ${hw === 'mini' ? 'LP MINI (9\u00d79)' : 'LP PRO (10\u00d710)'}${why ? ' \u00b7 ' + why : ''}`);
+}
+document.querySelectorAll('#hwPick button').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.hw)));
+applyLayout();
 
 // Remember default names and apply saved custom names (not TAP TEMPO: fast taps would open rename)
 freeBlink();
