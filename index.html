@@ -236,7 +236,7 @@ const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
 
 // Sound parameters, each stored as a level 0–7 (one vertical slider each on INST/SND page 2)
-const SND_PARAMS = ['ATK', 'DEC', 'SUS', 'REL', 'CUT', 'RES', 'PNCH', 'VOL'];
+const SND_PARAMS = ['ATTACK', 'DECAY', 'SUSTAIN', 'RELEASE', 'CUTOFF', 'RESO-\nNANCE', 'PUNCH', 'VOLUME'];
 const MAP = {
   a: l => [0, .005, .01, .03, .08, .2, .5, 1.2][l],
   d: l => [.03, .06, .1, .18, .3, .5, .9, 1.6][l],
