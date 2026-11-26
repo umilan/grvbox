@@ -356,7 +356,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.54'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.55'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3015,7 +3015,7 @@ const THEMES = {
   original: { name: 'Original (LEDs copy the screen)', css: false, match: true },
 };
 /* ---------- token themes: a few named colours, every button role uses one of them ----------
-   idle = interactive, off · idleB = second idle (black keys, drum kits, MUTE, empty steps, XY)
+   idle = interactive, off · idleB = second idle (round side buttons, black keys, drum kits, MUTE, empty steps, XY)
    active = on / selected / filled · space = non-interactive space · pressed = being pressed
    played = overlay on a note while it sounds · column = the selected track's column */
 const TOKENS = [
@@ -3023,7 +3023,8 @@ const TOKENS = [
   ['pressed', 'Pressed'], ['played', 'Currently played note (overlay)'], ['column', 'Highlighted track column'],
 ];
 const TOKEN_ROLES = { // role -> token
-  pad: 'idle', keyL: 'idle', empty: 'idle', fn: 'idle', solo: 'idle', arm: 'idle',
+  pad: 'idle', keyL: 'idle', empty: 'idle', solo: 'idle', arm: 'idle',
+  fn: 'idleB', // round side buttons
   keyD: 'idleB', kit: 'idleB', xy: 'idleB', step: 'idleB', dim: 'idleB', recDim: 'idleB', queuedDim: 'idleB', mute: 'idleB', allDim: 'idleB',
   sel: 'active', hot: 'active', stepon: 'active', fnDown: 'active', fnOn: 'active', rec: 'active', queued: 'active',
   muteOn: 'active', soloOn: 'active', copied: 'active',
