@@ -187,8 +187,8 @@
   .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; position: relative; z-index: 1; }
   .btn.fn .small, .btn .small { display: block; margin-top: .35em; font-size: .8em; opacity: .75; }
   /* pad tones */
-  .btn.pad.light { background: var(--key-light); color: var(--sel-ink); }
-  .btn.pad.dark { background: var(--key-dark); color: var(--sel-ink); }
+  .btn.pad.light { background: var(--key-light); color: var(--key-light-ink, var(--sel-ink)); }
+  .btn.pad.dark { background: var(--key-dark); color: var(--key-dark-ink, var(--sel-ink)); }
   .btn.pad.muteoff { background: var(--mute-off); color: var(--mute-off-ink); }
   .btn.pad.muteon { background: var(--mute-on); color: var(--mute-on-ink); font-weight: 600; }
   .btn.pad.solooff { background: var(--solo-off); color: var(--solo-off-ink); }
@@ -256,7 +256,12 @@
 
 <dialog id="ioDlg" aria-labelledby="ioTitle">
   <form method="dialog" class="io">
-    <header><h2 id="ioTitle">Audio &amp; MIDI</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
+    <header><h2 id="ioTitle">Settings</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
+    <section>
+      <h3>Theme</h3>
+      <label class="row">Colours <select id="ioTheme"></select></label>
+      <p class="note">Each theme also sets the Launchpad LED colours, picked so every state stays readable on the hardware.</p>
+    </section>
     <section>
       <h3>Audio</h3>
       <label class="row">Output <select id="ioAudioOut"></select></label>
@@ -298,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.17'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.18'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2722,24 +2727,97 @@ function lpTest() {
   }, k * 500));
   setTimeout(() => { lpTesting = false; lpLeds.clear(); }, 2000);
 }
-// nearest colour in the Launchpad palette (velocity = colour index)
-const LP_PAL = [[0, 0, 0, 0], [1, 28, 28, 28], [2, 124, 124, 124], [3, 255, 255, 255], [4, 255, 76, 76], [5, 255, 0, 0],
-  [6, 89, 0, 0], [9, 255, 84, 0], [8, 255, 189, 108], [12, 255, 255, 76], [13, 255, 255, 0], [14, 89, 89, 0], [15, 25, 25, 0],
-  [21, 0, 255, 0], [22, 0, 89, 0], [37, 0, 169, 255], [41, 76, 136, 255], [45, 0, 0, 255], [46, 0, 0, 89], [47, 0, 0, 25],
-  [49, 135, 76, 255], [52, 255, 76, 255], [53, 255, 0, 255], [54, 89, 0, 89], [55, 25, 0, 25], [56, 255, 76, 135], [57, 255, 0, 84], [58, 89, 0, 29]];
+/* ---------- colour themes: one semantic role = one screen colour + one Launchpad LED colour ----------
+   LED values are Launchpad palette indices (velocity). Each hue has four steps: n = pastel, n+1 = full,
+   n+2 = dim, n+3 = faint (red 4, orange 8, yellow 12, lime 16, green 20, teal 28, cyan 32, sky 36,
+   blue 40/44, violet 48, magenta 52, pink 56); greys are 1 dim, 2 mid, 3 white; 0 = off. */
+const SHARED_ROLES = { // same meaning in every theme: red = recording, blue = mute, yellow = solo / pressed
+  rec: ['#e8221b', 5], recDim: ['#4a0f0d', 6], queued: ['#f6b3d1', 56], queuedDim: [null, 59],
+  mute: ['#b9d4f5', 42], muteOn: ['#1f6fe5', 45], solo: ['#f7ecb5', 14], soloOn: ['#f2c200', 13],
+  arm: ['#f4b9b5', 6], copied: ['#f08a24', 9], allDim: ['#34466e', 46], press: ['#f9e58d', 13],
+  noteOwn: [null, 52], noteOther: [null, 41],
+};
+// Every theme uses the same brightness ladder so states read the same on the hardware:
+// empty step = faint, step with notes / sharp key = dim, natural key = full, selected = its own accent.
+const THEMES = {
+  classic: { name: 'Classic', css: false, // the original look on screen; LEDs in greys + magenta
+    pad: [, 1], keyL: [, 3], keyD: [, 2], empty: [, 0], emptyCur: [, 1], dim: [, 1], sel: [, 53], hot: [, 57],
+    fn: [, 55], fnDown: [, 54], fnOn: [, 53], bright: [, 52] },
+  neon: { name: 'Neon',
+    pad: ['#141a2e', 47], keyL: ['#3d5cff', 45], keyD: ['#232f80', 46], empty: ['#0b0e18', 0], emptyCur: ['#141a2e', 47], dim: ['#10142a', 47],
+    sel: ['#00e5ff', 37], hot: ['#ff2bd6', 53], fn: ['#160d2b', 51], fnDown: ['#3d2a80', 50], fnOn: ['#8a5cff', 49], bright: ['#cbb8ff', 48] },
+  sunset: { name: 'Sunset',
+    pad: ['#2a1608', 11], keyL: ['#ff7a1a', 9], keyD: ['#7a3410', 10], empty: ['#140b06', 0], emptyCur: ['#2a1608', 11], dim: ['#1e1108', 11],
+    sel: ['#fff1d6', 3], hot: ['#ff3d6e', 57], fn: ['#22100a', 11], fnDown: ['#5e2810', 10], fnOn: ['#ffb36b', 8], bright: ['#ffe0b0', 12] },
+  ocean: { name: 'Ocean',
+    pad: ['#061c26', 39], keyL: ['#00a9ff', 37], keyD: ['#0a4a66', 38], empty: ['#040e14', 0], emptyCur: ['#061c26', 39], dim: ['#05161e', 39],
+    sel: ['#e8fbff', 3], hot: ['#00e0a0', 33], fn: ['#071426', 43], fnDown: ['#123c66', 42], fnOn: ['#4c88ff', 40], bright: ['#a8d4ff', 36] },
+  forest: { name: 'Forest',
+    pad: ['#0e1f0a', 23], keyL: ['#3ddc3d', 21], keyD: ['#1c5a14', 22], empty: ['#070f05', 0], emptyCur: ['#0e1f0a', 23], dim: ['#0b180a', 23],
+    sel: ['#f3ffe6', 3], hot: ['#ff8a1f', 9], fn: ['#0c1d0c', 23], fnDown: ['#285a20', 22], fnOn: ['#88ff4c', 16], bright: ['#d8ffb8', 20] },
+  contrast: { name: 'High contrast',
+    pad: ['#1c1c1c', 1], keyL: ['#ffffff', 3], keyD: ['#6a6a6a', 2], empty: ['#000000', 0], emptyCur: ['#121212', 0], dim: ['#141414', 0],
+    sel: ['#ffe600', 13], hot: ['#00e05a', 21], fn: ['#1c1c1c', 1], fnDown: ['#5a5a5a', 2], fnOn: ['#ffffff', 3], bright: ['#ffe600', 13] },
+  night: { name: 'Night (dim)',
+    pad: ['#160a04', 11], keyL: ['#7a3a12', 10], keyD: ['#3a1a08', 11], empty: ['#0a0604', 0], emptyCur: ['#160a04', 11], dim: ['#100804', 0],
+    sel: ['#b0604a', 4], hot: ['#a05a20', 9], fn: ['#140a06', 11], fnDown: ['#3a1a10', 10], fnOn: ['#8a3a1a', 9], bright: ['#b06a40', 8] },
+};
+// which CSS variables each role paints (inks are worked out from the colour's lightness)
+const ROLE_VARS = {
+  pad: ['--pad'], keyL: ['--key-light'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
+  sel: ['--sel'], hot: ['--hot'], fn: ['--fn', '--nav', '--track', '--mode'], fnDown: ['--fn-down', '--nav-down'],
+  fnOn: ['--fn-on', '--track-on', '--mode-on'], bright: ['--mode-bright'],
+};
+const INK_OF = { '--pad': '--pad-ink', '--key-light': '--key-light-ink', '--key-dark': '--key-dark-ink', '--dim': '--dim-ink', '--sel': '--sel-ink',
+  '--hot': '--hot-ink', '--fn': '--fn-ink', '--nav': '--nav-ink', '--track': '--track-ink', '--mode': '--mode-ink',
+  '--fn-on': '--fn-on-ink', '--track-on': '--track-on-ink', '--mode-on': '--mode-on-ink', '--mode-bright': '--mode-bright-ink' };
+const themeVars = new Set();
+function inkFor(hex) {
+  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+  return (.2126 * r + .7152 * g + .0722 * b) / 255 > .55 ? '#141414' : '#f2f2f2';
+}
+let theme = THEMES[prefs.theme] || THEMES.classic;
+function applyTheme(id) {
+  theme = THEMES[id] || THEMES.classic;
+  const st = document.documentElement.style;
+  themeVars.forEach(v => st.removeProperty(v)); themeVars.clear();
+  if (theme.css !== false) Object.entries(ROLE_VARS).forEach(([role, vars]) => {
+    const col = theme[role] && theme[role][0];
+    if (!col) return;
+    vars.forEach(v => {
+      st.setProperty(v, col); themeVars.add(v);
+      if (INK_OF[v]) { st.setProperty(INK_OF[v], inkFor(col)); themeVars.add(INK_OF[v]); }
+    });
+  });
+  lpLeds.clear(); // repaint the Launchpad
+}
+const led = role => (theme[role] || SHARED_ROLES[role] || [, 0])[1];
+const ledFaint = i => i <= 0 ? 0 : i <= 3 ? 1 : i - ((i - 4) % 4) + 3; // the same hue's faint step
+const PAD_ROLE = { light: 'keyL', dark: 'keyD', muteoff: 'mute', muteon: 'muteOn', solooff: 'solo', soloon: 'soloOn', copied: 'copied',
+  armon: 'rec', armoff: 'arm', alldim: 'allDim', dim: 'dim', empty: 'empty', emptycur: 'emptyCur', sel: 'sel', hot: 'hot', rec: 'rec' };
+// the LED colour of one on-screen button, from what it means (not from its pixels)
 function lpColor(el) {
-  // unused spots stay dark: gaps between keys, switched-off pads, and letter keys with no function (E, F, G)
-  if (el.classList.contains('gap') || el.classList.contains('off')) return 0;
-  if (el.classList.contains('spare') && labelOf(el).trim().length <= 1) return 0;
-  const cs = getComputedStyle(el);
-  if (cs.visibility === 'hidden' || +cs.opacity < .3) return 0;
-  const m = cs.backgroundColor.match(/[\d.]+/g);
-  if (!m) return 0;
-  const [r, g, b, a = 1] = m.map(Number);
-  if (+a < .2) return 0;
-  let best = 0, bd = Infinity;
-  LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2; if (d < bd) { bd = d; best = i; } });
-  return best;
+  const cl = el.classList, root = document.documentElement.classList;
+  if (cl.contains('pad')) {
+    if (cl.contains('gap') || cl.contains('off')) return 0;
+    if (cl.contains('down')) return led('press');
+    if (cl.contains('nhit')) return led('noteOwn');
+    if (cl.contains('ohit')) return led('noteOther');
+    let v;
+    if (cl.contains('recwait')) v = root.contains('beatflash') ? led('rec') : led('recDim');
+    else if (cl.contains('queued')) v = root.contains('beatflash') ? led('queued') : led('queuedDim');
+    else v = led(Object.keys(PAD_ROLE).find(k => cl.contains(k)) ? PAD_ROLE[Object.keys(PAD_ROLE).find(k => cl.contains(k))] : 'pad');
+    return cl.contains('faded') ? ledFaint(v) : v;
+  }
+  if (cl.contains('spare') && labelOf(el).trim().length <= 1) return 0; // E, F, G: no function
+  if (cl.contains('down')) return led('press');
+  const on = el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-checked') === 'true';
+  if (cl.contains('rec') && on) return led('rec');
+  if (cl.contains('recplay')) return root.contains('recflash') ? led('rec') : led('recDim');
+  if (on) return cl.contains('bright') ? led('bright') : led('fnOn');
+  if (cl.contains('beat') || cl.contains('hit')) return led('fnDown');
+  if (cl.contains('settings')) return led('bright');
+  return led('fn');
 }
 function lpPaint() {
   if (!lpOut || lpTesting) return;
@@ -2823,6 +2901,9 @@ function ioLpDiag() {
   $io('ioLpProg').disabled = !lpOut || !sysex;
 }
 $io('ioBtn').addEventListener('click', () => { ioDlg.showModal(); ioAudio(); ioRefresh(); });
+ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, t]) => [id, t.name]), THEMES[prefs.theme] ? prefs.theme : 'classic');
+$io('ioTheme').addEventListener('change', e => { prefs.theme = e.target.value; savePrefs(); applyTheme(prefs.theme); say(`Theme \u00b7 ${theme.name}`); });
+applyTheme(prefs.theme);
 // a click outside the window (on the dimmed backdrop) closes it; the form fills the dialog, so only the backdrop hits the dialog itself
 ioDlg.addEventListener('click', e => { if (e.target === ioDlg) ioDlg.close(); });
 $io('ioAudioOut').addEventListener('change', e => {
