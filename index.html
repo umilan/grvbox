@@ -280,25 +280,15 @@
   <form method="dialog" class="io">
     <header><h2 id="ioTitle">Settings</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
     <section>
-      <h3>Controller</h3>
+      <h3>Controller &amp; theme</h3>
       <div class="row">Layout
         <div class="hw" id="hwPick" role="radiogroup" aria-label="Controller layout">
           <button type="button" id="hw-pro" role="radio" data-hw="pro">LP PRO</button>
           <button type="button" id="hw-mini" role="radio" data-hw="mini">LP MINI</button>
         </div>
       </div>
-      <p class="note">Picked automatically when a Launchpad is connected.</p>
-    </section>
-    <section>
-      <h3>Theme</h3>
       <label class="row">Colours <select id="ioTheme"></select></label>
-      <p class="note">Each theme also sets the Launchpad LED colours, picked so every state stays readable on the hardware.</p>
-    </section>
-    <section>
-      <h3>Audio</h3>
-      <label class="row">Output <select id="ioAudioOut"></select></label>
-      <p class="note" id="ioAudioNote"></p>
-      <button type="button" id="ioNames" class="link">Show device names</button>
+      <p class="note">The layout is picked automatically when a Launchpad is connected. Each theme also sets the Launchpad LED colours.</p>
     </section>
     <section>
       <h3>MIDI</h3>
@@ -318,6 +308,12 @@
       <label class="row check"><input type="checkbox" id="ioClockOut"> Send MIDI clock</label>
       <label class="row check"><input type="checkbox" id="ioClockIn"> Follow incoming MIDI clock</label>
     </section>
+    <section>
+      <h3>Audio</h3>
+      <label class="row">Output <select id="ioAudioOut"></select></label>
+      <p class="note" id="ioAudioNote"></p>
+      <button type="button" id="ioNames" class="link">Show device names</button>
+    </section>
   </form>
 </dialog>
 <div class="unit">
@@ -332,7 +328,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.34'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.35'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -508,9 +504,12 @@ function startMidi() {
     refreshMidiInputs(access);
     access.onstatechange = () => refreshMidiInputs(access);
   };
-  navigator.requestMIDIAccess({ sysex: true }).then(ok)
-    .catch(() => navigator.requestMIDIAccess({ sysex: false }).then(ok))
-    .catch(() => { midiStatus = 'unavailable'; if (midiPage) render(); ioRefresh(); });
+  // plain MIDI first, so MIDI is on straight away; SysEx (Programmer mode) is asked for only once a Launchpad shows up
+  navigator.requestMIDIAccess({ sysex: false }).then(access => {
+    ok(access);
+    const wantSysex = () => midiInputs.some(m => m.slot === 'lp') && !access.sysexEnabled;
+    if (wantSysex()) navigator.requestMIDIAccess({ sysex: true }).then(sx => { midiAccess = sx; refreshMidiInputs(sx); sx.onstatechange = () => refreshMidiInputs(sx); lpOut = null; lpConnect(sx); }).catch(() => {});
+  }).catch(() => { midiStatus = 'unavailable'; if (midiPage) render(); ioRefresh(); });
 }
 // MIDI clock in (when CLOCK IN is on): follow the tempo from 24 ticks per beat, and Start / Stop
 let clockTicks = [];
