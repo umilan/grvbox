@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.1'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.2'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -1673,23 +1673,57 @@ function shiftedBuf(L, semis) {
   L.shifted ||= {};
   return (L.shifted[semis] ||= stretchBuf(L.buf, Math.pow(2, semis / 12)));
 }
+// Loop edit page: row 1 = clip preview, rows 2\u20134 = the clip's steps (any note launches the loop),
+// rows 5\u20138 = the four loop sliders lying flat (name on the left, 7 choices to the right, low \u2192 high)
+const LOOP_STEP_ROWS = 3;
 function loopEditDesc(tr, r, c) {
-  if (c > 3 || r < 1) return { tone: 'off' };
-  const key = LP_KEYS[c], o = LP_OPTS[key], idx = 7 - r;
-  const chosen = lpOf(tr)[key] === idx;
-  const dot = r === 7 && activeAuto(curTrack).some(a => a.k === 'lp' && a.i === key) ? ' \u2022' : '';
-  return { label: r === 7 ? `${o.name}${dot}\n${o.lab[idx]}` : o.lab[idx], tone: chosen ? 'sel' : 'white' };
+  if (r < 1) return { tone: 'off' };
+  if (r <= LOOP_STEP_ROWS) { // steps
+    const cl = tr.clips[tr.active], len = clipLen(cl), s = (r - 1) * 8 + c;
+    if (s >= len) return { label: '', tone: 'empty' };
+    const on = cl && cl.notes.some(n => n.s === s);
+    const auto = cl && (cl.auto || []).some(a => a.s === s);
+    const lab = `${s + 1}${auto ? ' \u2022' : ''}`;
+    if (playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s) return { label: lab, tone: 'hot' };
+    if (tr.sel === s) return { label: lab, tone: 'sel' };
+    return { label: lab, tone: on ? 'dark' : 'white' };
+  }
+  const key = LP_KEYS[r - LOOP_STEP_ROWS - 1], o = LP_OPTS[key];
+  if (c === 0) {
+    const dot = activeAuto(curTrack).some(a => a.k === 'lp' && a.i === key) ? ' \u2022' : '';
+    return { label: `${o.name}${dot}`, tone: 'alldim' };
+  }
+  const idx = c - 1;
+  return { label: o.lab[idx], tone: lpOf(tr)[key] === idx ? 'sel' : 'white' };
 }
-function loopEditDown(tr, r, c) {
-  if (c > 3 || r < 1) return;
-  const key = LP_KEYS[c];
+function loopEditDown(tr, r, c, info) {
+  if (r < 1) return;
+  if (r <= LOOP_STEP_ROWS) { // steps: tap = launch step on/off, hold = clip length ends here
+    const s = (r - 1) * 8 + c;
+    info.hold = setTimeout(() => {
+      info.held = true; commit(); ensureClip(tr);
+      tr.clips[tr.active].len = s + 1;
+      say(`Clip ${tr.active + 1} length \u00b7 ${s + 1} steps`); render();
+    }, 600);
+    info.onTap = () => {
+      if (s >= clipLen(tr.clips[tr.active])) return say('Past the clip end \u00b7 hold a pad to set the length there');
+      commit(); ensureClip(tr);
+      const cl = tr.clips[tr.active], has = cl.notes.some(n => n.s === s);
+      if (has) { cl.notes = cl.notes.filter(n => n.s !== s); say(`Step ${s + 1} \u00b7 no launch`); }
+      else { cl.notes.push({ s, n: tr.last, len: 1 }); say(`Step ${s + 1} \u00b7 launches the loop from its start`); }
+    };
+    return;
+  }
+  const key = LP_KEYS[r - LOOP_STEP_ROWS - 1];
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); return clearAuto(curTrack, a => a.k === 'lp' && a.i === key, LP_OPTS[key].name); }
+  if (c === 0) return say(`${LP_OPTS[key].name} \u00b7 pick a value to the right`);
+  const idx = c - 1;
   commit();
-  lpOf(tr)[key] = 7 - r;
-  recordAuto(curTrack, { k: 'lp', i: key, v: 7 - r });
+  lpOf(tr)[key] = idx;
+  recordAuto(curTrack, { k: 'lp', i: key, v: idx });
   const L = loopSlots[tr.loop];
   if (key === 'pitch' && L.buf && lpVal(tr, 'pitch')) shiftedBuf(L, lpVal(tr, 'pitch')); // prepare now, not on the beat
-  say(`${L.name} \u00b7 ${LP_OPTS[key].name} ${LP_OPTS[key].lab[7 - r]} \u00b7 from the next loop start`);
+  say(`${L.name} \u00b7 ${LP_OPTS[key].name} ${LP_OPTS[key].lab[idx]} \u00b7 from the next loop start`);
 }
 // B / SAVE: tap saves over the current project (the one last saved or loaded), or into the first
 // free slot if there is none; hold saves into the first free slot as a new project
@@ -2125,7 +2159,7 @@ function padDown(r, c) {
           render();
         }, 700);
       } else if (tr.loop >= 0 && loopSlots[tr.loop]) {
-        loopEditDown(tr, r, c);
+        loopEditDown(tr, r, c, info);
       } else if (r < stepLayout(tr.clips[tr.active]).kbStart) {
         const s = (r - 2) * 8 + c;
         // hold a step pad = the clip ends there (works past the current end too)
