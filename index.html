@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.3'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.4'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -1693,7 +1693,7 @@ function loopEditDesc(tr, r, c) {
     if (s >= len) return { label: '', tone: 'empty' };
     const on = cl && cl.notes.some(n => n.s === s);
     const auto = cl && (cl.auto || []).some(a => a.s === s);
-    const lab = `${s + 1}${auto ? ' \u2022' : ''}`;
+    const lab = `${s % 8 + 1}${auto ? ' \u2022' : ''}`;
     if (playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s) return { label: lab, tone: 'hot' };
     if (tr.sel === s) return { label: lab, tone: 'sel' };
     return { label: lab, tone: on ? 'dark' : 'white' };
@@ -1918,14 +1918,14 @@ function padDesc(r, c) {
         // column = track (lines up with T1–T8), rows 1–6 are clip slots, then SOLO and MUTE (bottom)
         if (r === 6) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
         if (r === 7) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
-        const t = S.tracks[c], cl = t.clips[r];
-        if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? `${r + 1}` : '', tone: 'copied' };
+        const t = S.tracks[c], cl = t.clips[r], clab = `${instName(t)} ${r + 1}`; // e.g. KICK 1
+        if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? clab : '', tone: 'copied' };
         if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'empty' };
         const isActive = t.active === r;
-        if (t.queued === r || (isActive && t.queued === 'stop')) return { label: `${r + 1}`, tone: 'queued' };
+        if (t.queued === r || (isActive && t.queued === 'stop')) return { label: clab, tone: 'queued' };
         if (isActive && S.rec && c === curTrack) return { label: 'REC', tone: S.recStop ? 'recwait' : 'rec' };
-        if (isActive && !t.stopped) return { label: `${r + 1}`, tone: playing ? 'hot' : 'sel' };
-        return { label: `${r + 1}`, tone: 'dark' };
+        if (isActive && !t.stopped) return { label: clab, tone: playing ? 'hot' : 'sel' };
+        return { label: clab, tone: 'dark' };
       }
       if (tr.loop >= 0 && loopSlots[tr.loop]) return loopEditDesc(tr, r, c); // audio loop track: loop edit
       const cl = tr.clips[tr.active], L = stepLayout(cl);
@@ -1934,7 +1934,7 @@ function padDesc(r, c) {
         if (s >= L.len) return { label: '', tone: 'empty' };
         const notes = cl ? cl.notes.filter(n => n.s === s) : [];
         const auto = cl && (cl.auto || []).some(a => a.s === s); // • = FX automation on this step
-        const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s + 1}`) + (auto ? ' •' : '');
+        const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s % 8 + 1}`) + (auto ? ' •' : ''); // steps count 1–8 on every row
         if (playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s) return { label: lab, tone: 'hot' };
         if (tr.sel === s) return { label: lab, tone: 'sel' };
         return { label: lab, tone: notes.length || auto ? 'dark' : 'white' };
@@ -2446,11 +2446,15 @@ function renderTracks() {
   trackButtons.forEach((t, j) => {
     t.setAttribute('aria-checked', String(j === curTrack));
     t.tabIndex = j === curTrack ? 0 : -1;
-    const tr = S.tracks[j], lp = tr.loop >= 0 && loopSlots[tr.loop];
-    const name = lp ? lp.name : tr.split && tr.kitName ? tr.kitName : pName(tr.preset);
+    const name = instName(S.tracks[j]);
     const el = t.querySelector('.inst');
     if (el && el.textContent !== name) el.textContent = name;
   });
+}
+// what a track plays: its audio loop, drum kit or sound
+function instName(tr) {
+  const lp = tr.loop >= 0 && loopSlots[tr.loop];
+  return lp ? lp.name : tr.split && tr.kitName ? tr.kitName : pName(tr.preset);
 }
 // SETTINGS is part of the section group: while it's open no section is lit
 function openSettings() { appSettings = true; projPage = false; midiPage = false; settings = false; releaseAll(); render(); }
