@@ -177,6 +177,10 @@
   .io .edrow .sw i { position: absolute; inset: 0; }
   .io .edrow input { width: 100%; box-sizing: border-box; background: #1e1e1e; color: var(--screen-ink); border: 1px solid #444; border-radius: 6px; padding: 4px 6px; font: 13px/1.2 ui-monospace, monospace; }
   .io .edrow input.bad { border-color: #e8221b; }
+  .io .edrow input[type=number] { cursor: ew-resize; touch-action: none; -moz-appearance: textfield; text-align: right;
+    background: linear-gradient(90deg, rgba(255, 255, 255, .16) var(--fill, 0%), #1e1e1e var(--fill, 0%)); }
+  .io .edrow input[type=number]::-webkit-inner-spin-button, .io .edrow input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .io .edrow input[type=number]:focus { cursor: text; }
   .io .list:empty::before { content: 'None found'; color: var(--screen-dim); font-size: 12px; }
   .hw button {
     appearance: none; border: 1px solid var(--screen-dim); background: transparent; color: var(--screen-dim);
@@ -352,7 +356,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.53'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.54'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3287,9 +3291,32 @@ function edRender() {
       THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
       $io('ioEdName').textContent = theme.name; $io('ioEdReset').hidden = false;
     };
-    hx.addEventListener('input', commit); op.addEventListener('input', commit); show();
+    hx.addEventListener('input', commit); op.addEventListener('input', () => { commit(); scrubFill(op); }); show();
+    scrubbable(op); scrubFill(op);
     row.append(name, sw, hx, op); return row;
   }));
+}
+// opacity fields work as sliders: drag left/right (or up/down) to change, a plain click still lets you type
+function scrubFill(el) { el.style.setProperty('--fill', `${Math.max(0, Math.min(100, +el.value || 0))}%`); }
+function scrubbable(el) {
+  let x0 = 0, y0 = 0, v0 = 0, moved = false, id = null;
+  el.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    id = e.pointerId; x0 = e.clientX; y0 = e.clientY; v0 = +el.value || 0; moved = false;
+    try { el.setPointerCapture(id); } catch (_) {}
+  });
+  el.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    const d = (e.clientX - x0) - (e.clientY - y0); // right or up = more
+    if (!moved && Math.abs(d) < 3) return;
+    if (!moved) { moved = true; el.blur(); }
+    e.preventDefault();
+    const v = Math.max(0, Math.min(100, Math.round(v0 + d / 2)));
+    if (v !== +el.value) { el.value = v; el.dispatchEvent(new Event('input')); }
+  });
+  const end = e => { if (e.pointerId !== id) return; id = null; if (!moved) setTimeout(() => { el.focus(); el.select(); }, 0); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('mousedown', e => e.preventDefault()); // no text selection while dragging; focus happens on release
 }
 function edOpen(on) {
   $io('ioEd').hidden = !on; $io('ioMain').hidden = on;
