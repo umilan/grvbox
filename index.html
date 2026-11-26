@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.5'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.6'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -2022,8 +2022,7 @@ function padDown(r, c) {
         const snd = tr.split ? (tr.kit[tr.kitSel] ||= { preset: tr.preset, L: [...tr.L] }) : tr;
         snd.L[c] = 7 - r;
         recordAuto(curTrack, { k: 'sp', i: c, v: 7 - r, pc: tr.split ? tr.kitSel : -1 });
-        say(`${tr.split ? NAMES[tr.kitSel] + ' · ' : ''}${SND_PARAMS[c]} ${8 - r}/8`);
-        info.v = voice(curTrack, tr.split ? kitNote : tr.last, AC.currentTime);
+        say(`${tr.split ? NAMES[tr.kitSel] + ' · ' : ''}${SND_PARAMS[c]} ${8 - r}/8`); // sliders only change the sound, no preview note
       }
       break;
     }
