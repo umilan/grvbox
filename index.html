@@ -333,7 +333,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.50'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.51'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1987,9 +1987,11 @@ function toggleSavePick() {
   openProjects('save');
   say('Pick a slot to save into \u00b7 SAVE again cancels');
 }
-setInterval(() => { // SAVE blinks while it waits for a slot
-  if (projPage === 'save') fnKeys.SAVE.setAttribute('aria-pressed', String(fnKeys.SAVE.getAttribute('aria-pressed') !== 'true'));
-  else if (fnKeys.SAVE.getAttribute('aria-pressed') === 'true') fnKeys.SAVE.setAttribute('aria-pressed', 'false');
+setInterval(() => { // SAVE blinks while it waits for a slot; CLEAR blinks the same way while it's on
+  [[fnKeys.SAVE, projPage === 'save'], [fnKeys.CLEAR, mods.clear]].forEach(([b, on]) => {
+    if (on) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+    else if (b.getAttribute('aria-pressed') === 'true') b.setAttribute('aria-pressed', 'false');
+  });
 }, 350);
 function quickSave(asNew) {
   let slot = !asNew && currentProj >= 0 ? currentProj : -1;
@@ -2021,9 +2023,9 @@ let projBank = 0;
 function projDesc(r, c) {
   const slot = projBank * 64 + r * 8 + c;
   if (slot >= PROJ_SLOTS) return { tone: 'off' };
-  if (!projects[slot] && DEMOS[slot]) return { label: `${slot + 1}\n${DEMOS[slot].name}`, tone: slot === currentProj ? 'sel' : 'dark' }; // built-in
-  if (!projects[slot]) return { label: `${slot + 1}`, tone: 'empty' };
-  return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' };
+  if (!projects[slot] && DEMOS[slot]) return { label: `${slot + 1}\n${DEMOS[slot].name}`, tone: slot === currentProj ? 'sel' : 'light' }; // built-in
+  if (!projects[slot]) return { label: `${slot + 1}`, tone: 'dim' };       // empty slot
+  return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' }; // the current song uses the active colour
 }
 // LOAD page: tap a saved slot to load it. SAVE page: tap any slot to save there (replaces what was in it).
 // CLEAR + tap deletes a save on either page.
