@@ -326,6 +326,7 @@
         </div>
       </div>
       <div class="row">Colours <span class="themepick"><select id="ioTheme" aria-label="Colours"></select><button type="button" id="ioThemeEdit">Edit</button></span></div>
+      <label class="row check"><input type="checkbox" id="ioOtherNotes"> Show other tracks' notes on the keys (KEYS and step edit)</label>
       <p class="note">The layout is picked automatically when a Launchpad is connected. Each theme also sets the Launchpad LED colours.</p>
     </section>
     <section>
@@ -367,7 +368,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.68'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.69'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -746,7 +747,7 @@ let xyPick = null;      // while X or Y is held: { axis, used } — tap a slider
 const PREFS = [
   { key: 'flash', label: 'FLASH\n1–8', name: 'Activity flashes on 1–8' },
   { key: 'keyFlash', label: 'FLASH\nKEYS', name: 'Note flashes on the keys page' },
-  { key: 'otherNotes', label: 'OTHER\nNOTES', name: "Other tracks' notes on the keys page" },
+  { key: 'otherNotes', label: 'OTHER\nNOTES', name: "Other tracks' notes on the keys (KEYS page and step editor)" },
   null, null, null, null, null,
   // row 2: XY pad smoothing as a 4-step slider (0 = off)
   { key: 'smoothLvl', value: 0, label: 'SMOOTH\nOFF', name: 'XY smoothing off' },
@@ -840,7 +841,8 @@ function flashNote(ti, note, t) {
   const anySolo = S.tracks.some(x => x.solo), tr = S.tracks[ti];
   if (anySolo ? !tr.solo : tr.mute) return; // solo wins over mute
   setTimeout(() => {
-    if (activeMode !== 3 || settings || appSettings || projPage || midiPage) return;
+    // KEYS page and the step editor's keyboard show the notes as they sound
+    if (!(activeMode === 3 || (activeMode === 2 && page2)) || settings || appSettings || projPage || midiPage) return;
     const cls = ti === curTrack ? 'nhit' : 'ohit';
     padsForNote(note).forEach(p => {
       p.classList.add(cls);
@@ -3285,6 +3287,7 @@ function ioRefresh() {
   ioLpDiag();
   $io('ioClockOut').checked = !!prefs.clockOut;
   $io('ioClockIn').checked = !!prefs.clockIn;
+  $io('ioOtherNotes').checked = !!prefs.otherNotes;
 }
 // the Launchpad status lines only (updated on every press without rebuilding the lists)
 function ioLpDiag() {
@@ -3417,6 +3420,8 @@ function edOpen(on) {
   if (on) edRender();
 }
 $io('ioThemeEdit').addEventListener('click', () => edOpen(true));
+$io('ioOtherNotes').checked = !!prefs.otherNotes;
+$io('ioOtherNotes').addEventListener('change', e => { prefs.otherNotes = e.target.checked; savePrefs(); if (appSettings) render(); });
 $io('ioEdBack').addEventListener('click', () => edOpen(false));
 $io('ioEdReset').addEventListener('click', () => { // forget the edits: back to the theme Custom was made from
   const from = Object.entries(THEMES).find(([id, t]) => id !== 'custom' && THEMES.custom && THEMES.custom.name === `Custom (from ${t.name})`);
