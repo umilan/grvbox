@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.8'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.9'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -867,6 +867,7 @@ function playStep(st, t) {
     tr.queued = null;
   });
   S.tracks.forEach((tr, i) => {
+    if (trackOff(i)) { stopLoop(tr); return; }
     const cl = tr.clips[tr.active];
     if (cl && !tr.stopped) (cl.auto || []).forEach(a => { if (a.k === 'lp' && a.s === st % clipLen(cl)) applyAuto(i, a); });
     playLoopStep(tr, i, st, t);
@@ -1397,7 +1398,13 @@ function say(t) {
   messageTimer = setTimeout(() => { message = ''; renderScreen(); }, 1800);
   renderScreen();
 }
-function selectTrack(i) { curTrack = i; releaseAll(); render(); }
+// LP MINI hides the top pad row, so on the CLIPS page the clip slots move up one row:
+// visible rows show slots 1–5, then SOLO and MUTE
+const isMini = () => prefs.layout === 'mini';
+const clipRow = r => isMini() && !page2 ? (r <= 5 ? r - 1 : r) : r;
+// LP MINI has 7 tracks: track 8 is hidden and silent
+const trackOff = i => isMini() && i === 7;
+function selectTrack(i) { if (trackOff(i)) return say('Track 8 is not available on LP MINI'); curTrack = i; releaseAll(); render(); }
 // ← → transpose the KEYS page by semitones (±12)
 function shiftTrans(d) {
   // on CLIPS: ← → shorten / lengthen the selected track's clip by one step
@@ -1915,6 +1922,7 @@ function padDesc(r, c) {
     }
     case 2: { // CLIP/SEQ
       if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
+        r = clipRow(r);
         // column = track (lines up with T1–T8), rows 1–6 are clip slots, then SOLO and MUTE (bottom)
         if (r === 6) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
         if (r === 7) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
@@ -2120,6 +2128,7 @@ function padDown(r, c) {
     }
     case 2: {
       if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) {
+        r = clipRow(r);
         if (r >= 6) {
           const t = S.tracks[c], name = labelOf(trackButtons[c]);
           if (r === 7) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
@@ -2526,13 +2535,13 @@ function render() { renderPads(); renderTracks(); renderModes(); renderScreen();
    Every grid cell was created in order (row 0\u20139, column -1\u20138), so its logical spot is known from its index.
    LP MINI is the PRO layout trimmed at the bottom and left: the top row and A\u2013H keep their places,
    the pad area shows the bottom-left 7\u00d77 of the usual 8\u00d78, the right column keeps TAP\u2026CLIPS
-   (no KEYS button: the / key opens KEYS), and tracks 1\u20138 sit on the bottom row,
-   shifted right so track 8 takes the bottom-right corner. */
+   (no KEYS button: the / key opens KEYS), and tracks 1\u20137 sit on the bottom row
+   (no track 8: it is hidden and silent). On CLIPS the slots move up a row so slot 1 stays visible. */
 [...grid.children].forEach((el, i) => { el.dataset.r = Math.floor(i / 10); el.dataset.c = (i % 10) - 1; });
 function placeOf(r, c) {
   if (prefs.layout !== 'mini') return [r + 1, c + 2];
   if (r === 0) return c >= 0 && c <= 7 ? [1, c + 1] : null;     // top row of round buttons
-  if (r === 9) return c >= 0 && c <= 7 ? [9, c + 2] : null;     // tracks 1\u20138
+  if (r === 9) return c >= 0 && c <= 6 ? [9, c + 2] : null;     // tracks 1\u20137 (no track 8)
   if (c === -1) return r >= 1 && r <= 8 ? [r + 1, 1] : null;    // A\u2013H
   if (c === 8) return r >= 1 && r <= 7 ? [r + 1, 9] : null;     // TAP \u2026 CLIPS
   return r >= 2 && c <= 6 ? [r, c + 2] : null;                 // pads: bottom-left 7\u00d77 (top pad row and right pad column trimmed)
@@ -2551,6 +2560,8 @@ function applyLayout() {
 function setLayout(hw, why) {
   if ((prefs.layout || 'pro') === hw) return;
   prefs.layout = hw; savePrefs(); applyLayout();
+  if (trackOff(curTrack)) curTrack = 0;
+  render();
   say(`Layout \u00b7 ${hw === 'mini' ? 'LP MINI (9\u00d79)' : 'LP PRO (10\u00d710)'}${why ? ' \u00b7 ' + why : ''}`);
 }
 document.querySelectorAll('#hwPick button').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.hw)));
