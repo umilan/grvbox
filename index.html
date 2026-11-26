@@ -29,14 +29,14 @@
     --off-edge: #2b2b2b;
     --empty: #363636;
     --empty-cur: #4d4d4d;
-    --mute-off: #b9d4f5;
-    --mute-off-ink: #0d2a52;
-    --mute-on: #1f6fe5;
-    --mute-on-ink: #ffffff;
-    --solo-off: #f7ecb5;
-    --solo-off-ink: #4a3d00;
-    --solo-on: #f2c200;
-    --solo-on-ink: #2a2200;
+    --mute-off: #f7ecb5;   /* Novation colours: Mute = yellow, Solo = blue */
+    --mute-off-ink: #4a3d00;
+    --mute-on: #f2c200;
+    --mute-on-ink: #2a2200;
+    --solo-off: #b9d4f5;
+    --solo-off-ink: #0d2a52;
+    --solo-on: #1f6fe5;
+    --solo-on-ink: #ffffff;
     --note-own: rgba(215, 123, 209, .75);   /* selected track's notes on KEYS */
     --note-other: rgba(31, 111, 229, .5);   /* other tracks' notes on KEYS */
     --arm-off: #f4b9b5;
@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.19'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.20'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2731,9 +2731,9 @@ function lpTest() {
    LED values are Launchpad palette indices (velocity). Each hue has four steps: n = pastel, n+1 = full,
    n+2 = dim, n+3 = faint (red 4, orange 8, yellow 12, lime 16, green 20, teal 28, cyan 32, sky 36,
    blue 40/44, violet 48, magenta 52, pink 56); greys are 1 dim, 2 mid, 3 white; 0 = off. */
-const SHARED_ROLES = { // same meaning in every theme: red = recording, blue = mute, yellow = solo / pressed
+const SHARED_ROLES = { // same meaning in every theme, as on Novation hardware: red = recording, yellow = mute, blue = solo
   rec: ['#e8221b', 5], recDim: ['#4a0f0d', 6], queued: ['#f6b3d1', 56], queuedDim: [null, 59],
-  mute: ['#b9d4f5', 42], muteOn: ['#1f6fe5', 45], solo: ['#f7ecb5', 14], soloOn: ['#f2c200', 13],
+  mute: ['#f7ecb5', 15], muteOn: ['#f2c200', 13], solo: ['#b9d4f5', 47], soloOn: ['#1f6fe5', 45],
   arm: ['#f4b9b5', 6], copied: ['#f08a24', 9], allDim: ['#34466e', 46], press: ['#f9e58d', 13],
   noteOwn: [null, 52], noteOther: [null, 41],
 };
@@ -2762,13 +2762,11 @@ const THEMES = {
     pad: ['#160a04', 11], keyL: ['#7a3a12', 10], keyD: ['#3a1a08', 11], empty: ['#0a0604', 0], emptyCur: ['#160a04', 11], dim: ['#100804', 0],
     sel: ['#b0604a', 4], hot: ['#a05a20', 9], fn: ['#140a06', 11], fnDown: ['#3a1a10', 10], fnOn: ['#8a3a1a', 9], bright: ['#b06a40', 8] },
   // \u2014 based on Novation's own conventions \u2014
-  // Ableton Live session on Launchpad: playing = green, triggered = blinking green, recording = red,
-  // Mute = yellow, Solo = blue, Record Arm / Stop = red
+  // Ableton Live session on Launchpad: playing = green, triggered = blinking green, recording = red
   session: { name: 'Novation \u00b7 Live session',
     pad: ['#262626', 1], keyL: ['#e6e6e6', 3], keyD: ['#e07b1a', 9], empty: ['#000000', 0], emptyCur: ['#141414', 0], dim: ['#1a1a1a', 1],
     sel: ['#34d3ff', 37], hot: ['#20e050', 21], fn: ['#1a1a1a', 1], fnDown: ['#555555', 2], fnOn: ['#e6e6e6', 3], bright: ['#ffe14a', 12],
-    queued: ['#7dffa0', 20], queuedDim: [null, 23],
-    mute: ['#4d4200', 15], muteOn: ['#ffd21f', 13], solo: ['#0f2a5c', 47], soloOn: ['#2f6dff', 45] },
+    queued: ['#7dffa0', 20], queuedDim: [null, 23] },
   // Launchpad Pro MK3 sequencer: white playhead, filled steps green, root notes purple
   sequencer: { name: 'Novation \u00b7 Pro sequencer',
     pad: ['#222222', 1], keyL: ['#8a8a8a', 2], keyD: ['#19c34a', 21], empty: ['#0c0c0c', 0], emptyCur: ['#1c1c1c', 1], dim: ['#161616', 0],
