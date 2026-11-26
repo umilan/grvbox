@@ -229,6 +229,8 @@
   /* pad tones */
   .btn.pad.light { background: var(--key-light); color: var(--key-light-ink, var(--sel-ink)); }
   .btn.pad.playhead { background: var(--playhead, var(--sel)); color: var(--playhead-ink, var(--sel-ink)); }
+  .btn.pad.clipempty { background: var(--clipempty, var(--empty)); }
+  .btn.pad.clipoff { background: var(--clipoff, var(--key-dark)); color: var(--clipoff-ink, var(--sel-ink)); }
   .btn.pad.step { background: var(--step, var(--pad)); color: var(--step-ink, var(--pad-ink)); }
   .btn.pad.stepon { background: var(--stepon, var(--key-dark)); color: var(--stepon-ink, var(--sel-ink)); }
   .btn.pad.stepout { background: var(--stepout, transparent); } /* past the clip's end: no colour (hold one to extend the clip) */
@@ -365,7 +367,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.65'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.66'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2266,14 +2268,14 @@ function padDesc(r, c) {
         if (r === 6) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
         const t = S.tracks[c], cl = t.clips[r], clab = `${instName(t)} ${r + 1}`; // e.g. KICK 1
         if (clipboard && clipboard.from[0] === c && clipboard.from[1] === r) return { label: cl ? clab : '', tone: 'copied' };
-        if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'empty' };
+        if (!cl) return { label: '', tone: c === curTrack ? 'emptycur' : 'clipempty' };
         const isActive = t.active === r;
         if (t.queued === r || (isActive && t.queued === 'stop')) return { label: clab, tone: 'queued' };
         if (isActive && S.rec && c === curTrack) return { label: 'REC', tone: S.recStop ? 'recwait' : 'rec' };
         if (page2 && c === curTrack && isActive) // the clip being edited: blinks white \u2194 its state
-          return { label: clab, tone: selBlink ? 'sel' : (!t.stopped && playing ? 'light' : 'dark') };
+          return { label: clab, tone: selBlink ? 'sel' : (!t.stopped && playing ? 'light' : 'clipoff') };
         if (isActive && !t.stopped) return { label: clab, tone: 'sel' }; // active clip: white, playing or not (no extra colour)
-        return { label: clab, tone: 'dark' };
+        return { label: clab, tone: 'clipoff' }; // a clip that isn't playing
       }
       if (tr.loop >= 0 && loopSlots[tr.loop]) return loopEditDesc(tr, r, c); // audio loop track: loop edit
       const cl = tr.clips[tr.active], L = stepLayout(cl);
@@ -2811,7 +2813,7 @@ function clipTap(r, c) {
 }
 
 /* ============================== RENDER ============================== */
-const TONES = ['white', 'light', 'kit', 'xy', 'step', 'stepon', 'stepout', 'playhead', 'dark', 'dim', 'alldim', 'armon', 'armoff', 'copied', 'muteoff', 'muteon', 'solooff', 'soloon', 'empty', 'emptycur', 'sel', 'hot', 'rec', 'recwait', 'queued', 'gap', 'off'];
+const TONES = ['white', 'light', 'kit', 'xy', 'step', 'stepon', 'stepout', 'playhead', 'clipempty', 'clipoff', 'dark', 'dim', 'alldim', 'armon', 'armoff', 'copied', 'muteoff', 'muteon', 'solooff', 'soloon', 'empty', 'emptycur', 'sel', 'hot', 'rec', 'recwait', 'queued', 'gap', 'off'];
 function renderPads() {
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     const b = pads[r][c], d = padDesc(r, c);
@@ -3093,7 +3095,8 @@ const TOKENS = [
   ['pressed', 'Pressed'], ['played', 'Currently played note (overlay)'], ['playhead', 'Playhead'], ['column', 'Highlighted track column'], ['warning', 'Warning (REC, CLEAR)'], ['success', 'Success (SAVE)'],
 ];
 const TOKEN_ROLES = { // role -> token
-  pad: 'idle', keyL: 'idle', empty: 'idle', solo: 'idle', arm: 'idle',
+  pad: 'idle', keyL: 'idle', empty: 'idle', solo: 'idle', arm: 'idle', clipoff: 'idle',
+  clipempty: 'idleB', // empty clip slots
   fn: 'idleB', // round side buttons
   keyD: 'idleB', kit: 'idleB', xy: 'idleB', step: 'idleB', dim: 'idleB', recDim: 'idleB', queuedDim: 'idleB', mute: 'idleB', allDim: 'idleB',
   sel: 'active', hot: 'active', stepon: 'active', fnDown: 'active', fnOn: 'active', queued: 'active',
@@ -3104,7 +3107,7 @@ const TOKEN_ROLES = { // role -> token
 };
 const MONO_TOKENS = {
   idle: ['#808080', 2], idleB: ['#404040', 1], active: ['#bfbfbf', 3], space: ['#1e1e1e', 0],
-  pressed: ['#ffffff', 3], played: ['rgba(255, 255, 255, 0.2)', 0], playhead: ['rgba(255, 255, 255, 0.75)', 3], column: ['#8d8d8d', 2], warning: ['#e8221b', 5], success: ['#2fbf4f', 21],
+  pressed: ['#ffffff', 3], played: ['rgba(255, 255, 255, 0.2)', 0], playhead: ['rgba(255, 255, 255, 0.75)', 3], column: ['#535353', 1], warning: ['#e8221b', 5], success: ['#2fbf4f', 21],
 };
 function tokenTheme(name, tokens) {
   if (!tokens.playhead) { // themes saved before the playhead colour: the played-note colour at 75 %
@@ -3124,14 +3127,14 @@ function tokenTheme(name, tokens) {
 THEMES.mono = tokenTheme('Mono (white levels)', MONO_TOKENS);
 // which CSS variables each role paints (inks are worked out from the colour's lightness)
 const ROLE_VARS = {
-  pad: ['--pad'], keyL: ['--key-light'], kit: ['--kit'], xy: ['--xy'], step: ['--step'], stepon: ['--stepon'], stepout: ['--stepout'], playhead: ['--playhead'], warning: ['--warning'], success: ['--success'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
+  pad: ['--pad'], keyL: ['--key-light'], kit: ['--kit'], xy: ['--xy'], step: ['--step'], stepon: ['--stepon'], stepout: ['--stepout'], playhead: ['--playhead'], warning: ['--warning'], success: ['--success'], clipempty: ['--clipempty'], clipoff: ['--clipoff'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
   sel: ['--sel'], hot: ['--hot'], fn: ['--fn', '--nav', '--track', '--mode'], fnDown: ['--fn-down', '--nav-down'],
   fnOn: ['--fn-on', '--track-on', '--mode-on'], bright: ['--mode-bright'],
   // shared roles, only when a theme sets its own
   rec: ['--rec'], recDim: ['--rec-dim'], queued: ['--queued'], mute: ['--mute-off'], muteOn: ['--mute-on'],
   solo: ['--solo-off'], soloOn: ['--solo-on'], arm: ['--arm-off'], copied: ['--copied'], allDim: ['--all-dim'], press: ['--press', '--pad-down'],
 };
-const INK_OF = { '--pad': '--pad-ink', '--key-light': '--key-light-ink', '--kit': '--kit-ink', '--xy': '--xy-ink', '--step': '--step-ink', '--stepon': '--stepon-ink', '--playhead': '--playhead-ink', '--warning': '--warning-ink', '--success': '--success-ink', '--key-dark': '--key-dark-ink', '--dim': '--dim-ink', '--sel': '--sel-ink',
+const INK_OF = { '--pad': '--pad-ink', '--key-light': '--key-light-ink', '--kit': '--kit-ink', '--xy': '--xy-ink', '--step': '--step-ink', '--stepon': '--stepon-ink', '--playhead': '--playhead-ink', '--warning': '--warning-ink', '--success': '--success-ink', '--clipoff': '--clipoff-ink', '--key-dark': '--key-dark-ink', '--dim': '--dim-ink', '--sel': '--sel-ink',
   '--hot': '--hot-ink', '--fn': '--fn-ink', '--nav': '--nav-ink', '--track': '--track-ink', '--mode': '--mode-ink',
   '--fn-on': '--fn-on-ink', '--track-on': '--track-on-ink', '--mode-on': '--mode-on-ink', '--mode-bright': '--mode-bright-ink',
   '--rec': '--rec-ink', '--rec-dim': '--rec-dim-ink', '--mute-off': '--mute-off-ink', '--mute-on': '--mute-on-ink',
@@ -3160,10 +3163,10 @@ function applyTheme(id) {
   Object.entries(theme.vars || {}).forEach(([v, val]) => { st.setProperty(v, val); themeVars.add(v); }); // overlays etc.
   lpLeds.clear(); // repaint the Launchpad
 }
-const ROLE_FALLBACK = { kit: 'keyL', xy: 'pad', step: 'pad', stepon: 'keyD', playhead: 'sel', warning: 'rec' }; // stepout has none: off // roles a theme may leave out
+const ROLE_FALLBACK = { kit: 'keyL', xy: 'pad', step: 'pad', stepon: 'keyD', playhead: 'sel', warning: 'rec', clipempty: 'empty', clipoff: 'keyD' }; // stepout has none: off // roles a theme may leave out
 const led = role => (theme[role] || SHARED_ROLES[role] || theme[ROLE_FALLBACK[role]] || [, 0])[1];
 const ledFaint = i => i <= 0 ? 0 : i <= 3 ? 1 : i - ((i - 4) % 4) + 3; // the same hue's faint step
-const PAD_ROLE = { light: 'keyL', kit: 'kit', xy: 'xy', stepon: 'stepon', stepout: 'stepout', step: 'step', playhead: 'playhead', dark: 'keyD', muteoff: 'mute', muteon: 'muteOn', solooff: 'solo', soloon: 'soloOn', copied: 'copied',
+const PAD_ROLE = { light: 'keyL', kit: 'kit', xy: 'xy', stepon: 'stepon', stepout: 'stepout', step: 'step', playhead: 'playhead', clipempty: 'clipempty', clipoff: 'clipoff', dark: 'keyD', muteoff: 'mute', muteon: 'muteOn', solooff: 'solo', soloon: 'soloOn', copied: 'copied',
   armon: 'rec', armoff: 'arm', alldim: 'allDim', dim: 'dim', empty: 'empty', emptycur: 'emptyCur', sel: 'sel', hot: 'hot', rec: 'rec' };
 // the LED colour of one on-screen button, from what it means (not from its pixels)
 // Original theme: nearest Launchpad palette colour to the button's screen colour
