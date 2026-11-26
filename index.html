@@ -328,7 +328,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.35'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.36'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -449,6 +449,87 @@ S.tracks[7].loop = 4; // track 8 plays the WEIRD PERC audio loop by default
 S.tracks[7].clips[0] = { notes: [{ s: 0, n: 48, len: 1 }] }; // one launch step: restart its first bar every bar
 S.tracks[7].active = 0;
 S.tracks[7].lp = { v: 2, speed: 3, start: 0, frac: 3, pitch: 3 };
+
+/* ---------- built-in songs (songs page slots 2\u20138; slot 1 is left empty) ----------
+   Slot 2 is the song the app starts with; slots 3\u20138 are demos. They are never written to your storage:
+   saving into one of these slots puts your song there instead, and deleting your save brings the demo back. */
+const FXI = n => FX.findIndex(f => f.n === n);
+// spec: { bpm, swing, tracks: [{ p: preset, fx: { DELAY: [mix, time, fb, tone] \u2026 }, notes: [[step, note, len]], len, vol, loop, lp }] }
+function makeSong(spec) {
+  const st = { v: 1, bpm: spec.bpm, swing: spec.swing || 0, clickSnd: 0, clickVel: 5, oct: 2, transpose: 0, tracks: [] };
+  spec.tracks.forEach(d => {
+    const fx = Object.keys(d.fx || {}).map(FXI), t = newTrack(d.p, fx);
+    Object.entries(d.fx || {}).forEach(([n, v]) => { if (v) t.fxP[FXI(n)] = v; });
+    if (d.notes) { t.clips[0] = { notes: d.notes.map(([s, n, len = 1]) => ({ s, n, len })) }; if (d.len) t.clips[0].len = d.len; t.active = 0; }
+    if (d.vol !== undefined) t.vol = d.vol;
+    if (d.loop !== undefined) { t.loop = d.loop; t.lp = { v: 2, speed: 3, start: 0, frac: 6, pitch: 3, ...d.lp }; }
+    st.tracks.push({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips, active: t.active,
+      stopped: false, split: false, kit: {}, kitName: undefined, kitSel: 0, mute: false, solo: false, vol: t.vol, last: 48, loop: t.loop });
+  });
+  return st;
+}
+const D = 48, every = (step, from = 0, n = 48, len = 1, to = 16) => { const a = []; for (let s = from; s < to; s += step) a.push([s, n, len]); return a; };
+const chord = (s, notes, len) => notes.map(n => [s, n, len]);
+const DEMO_SPECS = {
+  2: { name: 'HOUSE', bpm: 124, swing: 2, tracks: [
+    { p: 0, notes: every(4) },
+    { p: 4, notes: every(4, 2), vol: 4 },
+    { p: 11, notes: [[2, 36], [6, 36], [10, 39], [14, 41], [15, 43]], fx: { FILTER: [5, 3, 2, 2] } },
+    { p: 21, notes: [...chord(0, [60, 63, 67], 2), ...chord(6, [60, 63, 67], 2), ...chord(10, [58, 62, 65], 2)], fx: { REVERB: [3, 4, 3] }, vol: 4 },
+    { p: 2, notes: [[4, D], [12, D]] },
+    { p: 3, notes: every(2, 1), vol: 3 },
+    { p: 18, notes: [[0, 72], [3, 75], [7, 79], [11, 77]], fx: { DELAY: [3, 4, 4, 4] }, vol: 3 },
+    { p: 7, notes: [[7, D], [15, D]], vol: 2 } ] },
+  3: { name: 'TECHNO', bpm: 130, tracks: [
+    { p: 0, notes: every(4), fx: { DRIVE: [3, 2, 4, 4] } },
+    { p: 3, notes: every(2, 2) },
+    { p: 9, notes: [[0, 36], [2, 36], [3, 48], [6, 36], [8, 39], [10, 36], [11, 46], [14, 36]], fx: { DELAY: [2, 4, 4, 3], FILTER: [3, 5, 4, 3] } },
+    { p: 23, notes: [[0, 48, 16]], fx: { REVERB: [4, 6, 3] }, vol: 3 },
+    { p: 2, notes: [[4, D], [12, D]], fx: { REVERB: [2, 3, 3] } },
+    { p: 6, notes: [[3, D], [7, D], [13, D]], vol: 3 },
+    { p: 4, notes: every(4, 2), vol: 3 },
+    { p: 5, notes: [[14, D], [15, D]], vol: 3 } ] },
+  4: { name: 'DRUM & BASS', bpm: 172, tracks: [
+    { p: 0, notes: [[0, D], [10, D]] },
+    { p: 3, notes: every(2), vol: 3 },
+    { p: 10, notes: [[0, 31, 6], [8, 34, 2], [10, 29, 6]], fx: { FILTER: [4, 3, 2, 3] } },
+    { p: 17, notes: [[0, 60, 16], [0, 63, 16], [0, 67, 16]], fx: { REVERB: [4, 6, 2] }, vol: 3 },
+    { p: 1, notes: [[4, D], [12, D]] },
+    { p: 6, notes: [[7, D], [9, D], [15, D]], vol: 2 },
+    { p: 19, notes: [[0, 79], [6, 75], [12, 72]], fx: { DELAY: [3, 4, 4, 5], REVERB: [3, 5, 3] }, vol: 3 },
+    { p: 19, loop: 1, lp: { frac: 4 }, notes: [[0, D]], vol: 4 } ] },
+  5: { name: 'HIP HOP', bpm: 88, swing: 4, tracks: [
+    { p: 0, notes: [[0, D], [7, D], [10, D]] },
+    { p: 3, notes: every(2), vol: 3 },
+    { p: 8, notes: [[0, 36, 3], [7, 36, 2], [10, 43, 3], [14, 41, 2]] },
+    { p: 21, notes: [...chord(0, [57, 60, 64], 6), ...chord(8, [53, 57, 60], 6)], fx: { CHORUS: [3, 2, 3], REVERB: [2, 4, 4] }, vol: 4 },
+    { p: 1, notes: [[4, D], [12, D]] },
+    { p: 6, notes: [[15, D]], vol: 3 },
+    { p: 19, notes: [[3, 76], [11, 72]], fx: { DELAY: [3, 5, 3, 3] }, vol: 3 },
+    { p: 5, notes: [[13, D], [14, D]], vol: 2 } ] },
+  6: { name: 'ACID', bpm: 128, tracks: [
+    { p: 0, notes: every(4) },
+    { p: 4, notes: every(4, 2), vol: 4 },
+    { p: 9, notes: [[0, 36], [1, 36], [3, 48], [4, 36], [6, 39], [7, 36], [9, 46], [10, 36], [12, 43], [13, 36], [15, 51]], fx: { DELAY: [3, 4, 5, 4], DRIVE: [4, 3, 4, 4] } },
+    { p: 15, notes: [[0, 48, 2], [8, 46, 2]], fx: { REVERB: [3, 5, 3] }, vol: 3 },
+    { p: 2, notes: [[4, D], [12, D]] },
+    { p: 3, notes: every(2, 1), vol: 3 },
+    { p: 9, notes: [[2, 60], [5, 63], [11, 58]], fx: { DELAY: [4, 5, 5, 3] }, vol: 2 },
+    { p: 7, notes: [[3, D], [11, D]], vol: 2 } ] },
+  7: { name: 'AMBIENT', bpm: 90, tracks: [
+    { p: 0, notes: [[0, D]], vol: 3 },
+    { p: 3, notes: every(4, 2), vol: 2, fx: { REVERB: [4, 5, 3] } },
+    { p: 8, notes: [[0, 36, 8], [8, 31, 8]] },
+    { p: 17, notes: [...chord(0, [60, 64, 67, 71], 16)], fx: { REVERB: [6, 7, 2], CHORUS: [4, 1, 4] }, vol: 4 },
+    { p: 6, notes: [[6, D], [14, D]], vol: 2, fx: { REVERB: [5, 6, 3] } },
+    { p: 19, notes: [[0, 76], [3, 79], [6, 83], [10, 72], [13, 74]], fx: { DELAY: [4, 5, 5, 3], REVERB: [5, 7, 2] }, vol: 3 },
+    { p: 18, notes: [[4, 67], [12, 64]], fx: { DELAY: [3, 6, 4, 4] }, vol: 2 },
+    { p: 23, notes: [[8, 48, 8]], fx: { REVERB: [6, 7, 3] }, vol: 2 } ] },
+};
+const DEMOS = { 1: { name: 'START', data: '' } }; // slot 2 = the song the app starts with (filled in below)
+Object.entries(DEMO_SPECS).forEach(([slot, spec]) => { DEMOS[slot] = { name: spec.name, data: JSON.stringify(makeSong(spec)) }; });
+
+DEMOS[1].data = JSON.stringify(projectState());
 
 let curTrack = 0;     // T1–T4
 let activeMode = 3;   // 0 FX/EDIT, 1 INST/SND, 2 CLIP/SEQ, 3 KEY/FRET
@@ -1662,7 +1743,9 @@ function projectState() {
 }
 function applyProject(p) {
   ['bpm', 'swing', 'clickSnd', 'clickVel', 'oct', 'transpose'].forEach(k => { if (p[k] !== undefined) S[k] = p[k]; });
+  S.tracks.forEach(stopLoop); // a loop from the song before must not keep playing
   p.tracks.forEach((d, i) => { if (S.tracks[i]) Object.assign(S.tracks[i], d, { queued: null, sel: -1 }); });
+  S.tracks.forEach(t => { if (t.loop >= 0) ensureLoopBuf(t.loop); });
   if (AC) { S.tracks.forEach((t, i) => buildFx(i)); applyMix(); }
   freeBlink();
 }
@@ -1892,9 +1975,10 @@ function quickSave(asNew) {
 function loadProject(slot) {
   try {
     commit(); // UNDO brings back what you had before loading
-    applyProject(JSON.parse(projects[slot].data));
+    const demo = !projects[slot] && DEMOS[slot];
+    applyProject(JSON.parse(demo ? demo.data : projects[slot].data));
     currentProj = slot;
-    say(`Project ${slot + 1} loaded`);
+    say(demo ? `Song ${slot + 1} \u00b7 ${demo.name} loaded (built-in)` : `Project ${slot + 1} loaded`);
   } catch (e) { say(`Couldn't load project ${slot + 1}`); }
   render();
 }
@@ -1912,6 +1996,7 @@ let projBank = 0;
 function projDesc(r, c) {
   const slot = projBank * 64 + r * 8 + c;
   if (slot >= PROJ_SLOTS) return { tone: 'off' };
+  if (!projects[slot] && DEMOS[slot]) return { label: `${slot + 1}\n${DEMOS[slot].name}`, tone: slot === currentProj ? 'sel' : 'dark' }; // built-in
   if (!projects[slot]) return { label: `${slot + 1}`, tone: 'empty' };
   return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' };
 }
@@ -1919,9 +2004,9 @@ function projDesc(r, c) {
 // CLEAR + tap deletes a save on either page.
 function projDown(r, c) {
   const slot = projBank * 64 + r * 8 + c;
-  if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say('That slot is empty'); return; }
+  if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say(DEMOS[slot] ? 'Built-in song \u00b7 save over it to replace it' : 'That slot is empty'); return; }
   if (projPage === 'save') { saveProject(slot, !!projects[slot]); return; }
-  if (!projects[slot]) { say('Nothing saved there · use B to save'); return; }
+  if (!projects[slot] && !DEMOS[slot]) { say('Nothing saved there · use B to save'); return; }
   loadProject(slot);
 }
 /* ---------- XY pad (FX page 2): the whole 8×8 sets two effect settings at once ---------- */
