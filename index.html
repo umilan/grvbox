@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.29'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.30'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2588,7 +2588,14 @@ function openSettings() { appSettings = true; projPage = false; midiPage = false
 function openProjects(mode) { projPage = mode; appSettings = false; midiPage = false; settings = false; releaseAll(); render(); }
 // Section buttons (and their keys): pick a section; the selected one again flips to its page 2
 function pickSection(i) {
-  if (settings || appSettings || projPage || midiPage) { settings = false; appSettings = false; projPage = false; midiPage = false; activeMode = i; page2 = false; releaseAll(); render(); return; }
+  // a page with no exit button of its own (settings, songs, MIDI, XY pad): the lit section key is BACK,
+  // returning to the page you came from; another section key goes to that section
+  if (settings || appSettings || projPage || midiPage) {
+    settings = false; appSettings = false; projPage = false; midiPage = false;
+    if (i !== activeMode) { activeMode = i; page2 = false; }
+    releaseAll(); render(); say(`${MODES[activeMode]} · ${PAGE_NAMES[activeMode][page2 ? 1 : 0]}`); return;
+  }
+  if (xyPad && i === activeMode) { xyPad = false; xyPick = null; releaseAll(); render(); say('XY pad off · back to effect settings'); return; }
   if (i === activeMode) page2 = !page2; else { activeMode = i; page2 = false; }
   releaseAll(); render();
 }
