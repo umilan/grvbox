@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.24'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.25'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -788,6 +788,20 @@ function ix(arr, l) {
   return arr[a] + (arr[b] - arr[a]) * (i - a);
 }
 function curve(fn) { const n = 2048, a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = fn(i / (n - 1) * 2 - 1); return a; }
+// Tempo-synced time sliders: the 8 steps are note lengths in 16ths (1 = 1/16, 4 = 1/4 = one beat, 16 = one bar).
+// DELAY TIME = echo spacing; the RATE sliders = one LFO cycle.
+const SYNC = {
+  DELAY: { 1: [1, 2, 3, 4, 6, 8, 12, 16] },
+  FILTER: { 2: [64, 32, 16, 8, 4, 2, 1, .5] },
+  CHORUS: { 1: [64, 32, 16, 8, 4, 2, 1, .5] },
+  TREM: { 0: [8, 4, 3, 2, 4 / 3, 1, 2 / 3, .5] },
+};
+const NOTE_LAB = [[64, '4 BAR'], [32, '2 BAR'], [16, '1 BAR'], [12, '1/2.'], [8, '1/2'], [6, '1/4.'], [4, '1/4'], [3, '1/8.'],
+  [2, '1/8'], [4 / 3, '1/8T'], [1, '1/16'], [2 / 3, '1/16T'], [.5, '1/32']];
+const noteLab = n => (NOTE_LAB.find(([v]) => Math.abs(v - n) < .01) || [, `${n}/16`])[1];
+const syncOf = (fx, i) => (SYNC[FX[fx].n] || {})[i];
+// one LFO cycle of n 16ths at the current tempo, in Hz
+const syncHz = (steps, L) => 1 / (ix(steps, L) * stepDur());
 function makeFx(type) {
   const c = AC, input = c.createGain(), output = c.createGain(), dry = c.createGain(), wet = c.createGain();
   input.connect(dry).connect(output);
@@ -804,7 +818,7 @@ function makeFx(type) {
       input.connect(dl); dl.connect(tone); tone.connect(fb); fb.connect(dl); tone.connect(wet);
       set = L => {
         mix(L[0]);
-        dl.delayTime.setTargetAtTime(ix([1, 2, 3, 4, 6, 8, 12, 16], L[1]) * stepDur(), c.currentTime, .02);
+        dl.delayTime.setTargetAtTime(ix(SYNC.DELAY[1], L[1]) * stepDur(), c.currentTime, .02);
         fb.gain.value = ix([0, .15, .3, .45, .55, .65, .75, .85], L[2]);
         tone.frequency.value = 500 * Math.pow(30, L[3] / 7);
       };
@@ -841,7 +855,7 @@ function makeFx(type) {
       set = L => {
         const cut = MAP.cut(L[0]);
         f.frequency.value = cut; f.Q.value = ix([.5, 1, 2, 4, 6, 9, 13, 18], L[1]);
-        o.frequency.value = ix([.1, .25, .5, 1, 2, 4, 8, 12], L[2]);
+        o.frequency.value = syncHz(SYNC.FILTER[2], L[2]);
         g.gain.value = cut * .9 * L[3] / 7;
       };
       break;
@@ -850,13 +864,13 @@ function makeFx(type) {
       const dl = c.createDelay(.1), [o, g] = lfo();
       dl.delayTime.value = .02;
       input.connect(dl); dl.connect(wet); g.connect(dl.delayTime);
-      set = L => { mix(L[0]); o.frequency.value = ix([.1, .2, .4, .7, 1, 2, 4, 7], L[1]); g.gain.value = .0008 * (L[2] + 1); };
+      set = L => { mix(L[0]); o.frequency.value = syncHz(SYNC.CHORUS[1], L[1]); g.gain.value = .0008 * (L[2] + 1); };
       break;
     }
     case 'TREM': {
       const amp = c.createGain(), [o, g] = lfo();
       input.connect(amp); amp.connect(wet); g.connect(amp.gain); insert();
-      set = L => { o.frequency.value = ix([1, 2, 3, 4, 6, 8, 11, 15], L[0]); const dp = L[1] / 7; amp.gain.value = 1 - dp / 2; g.gain.value = dp / 2; };
+      set = L => { o.frequency.value = syncHz(SYNC.TREM[0], L[0]); const dp = L[1] / 7; amp.gain.value = 1 - dp / 2; g.gain.value = dp / 2; };
       break;
     }
     case 'CRUSH': {
@@ -901,7 +915,7 @@ function buildFx(i) {
   node.connect(b.output);
 }
 function refreshTimedFx() {
-  if (AC) bus.forEach((b, i) => b.chain.forEach(x => { if (FX[x.type].n === 'DELAY') x.fx.set(S.tracks[i].fxP[x.type]); }));
+  if (AC) bus.forEach((b, i) => b.chain.forEach(x => { if (SYNC[FX[x.type].n]) x.fx.set(S.tracks[i].fxP[x.type]); })); // tempo-synced effects follow the BPM
 }
 
 /* ============================== SEQUENCER ============================== */
@@ -1999,7 +2013,8 @@ function padDesc(r, c) {
       if (c >= p.length) return { tone: 'off' };
       const lvl = 7 - r;
       const dot = activeAuto(curTrack).some(a => a.k === 'p' && a.fx === tr.fxFocus && a.i === c) ? ' •' : '';
-      return { label: lvl === P[c] ? `${p[c]} ${sliderPct(P[c])}${dot}` : '', tone: lvl <= P[c] ? 'sel' : 'white' };
+      const sy = syncOf(tr.fxFocus, c); // time sliders show note lengths (1/16, 1/8 …), the others a percentage
+      return { label: lvl === P[c] ? `${p[c]} ${sy ? noteLab(sy[P[c]]) : sliderPct(P[c])}${dot}` : '', tone: lvl <= P[c] ? 'sel' : 'white' };
     }
     case 4: { // MIX: column = track; fader on rows 1–6, then SOLO and MUTE
       const t = S.tracks[c];
@@ -2212,7 +2227,8 @@ function padDown(r, c) {
         const item = bus[curTrack].chain.find(x => x.type === fx);
         if (item) item.fx.set(tr.fxP[fx]);
         recordAuto(curTrack, { k: 'p', fx, i: c, v: 7 - r });
-        say(`${FX[fx].n} · ${FX[fx].p[c]} ${8 - r}/8`);
+        const sy = syncOf(fx, c);
+        say(`${FX[fx].n} · ${FX[fx].p[c]} ${sy ? noteLab(sy[7 - r]) : sliderPct(7 - r)}`);
       }
       break;
     }
