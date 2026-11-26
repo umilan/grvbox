@@ -174,7 +174,10 @@
   .io .edrow .sw { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #444;
     background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%), linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%);
     background-size: 8px 8px; background-position: 0 0, 4px 4px; position: relative; overflow: hidden; }
-  .io .edrow .sw i { position: absolute; inset: 0; }
+  .io .edrow .sw { cursor: pointer; }
+  .io .edrow .sw i { position: absolute; inset: 0; pointer-events: none; }
+  .io .edrow .sw input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+  .io .edrow .sw:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
   .io .edrow input { width: 100%; box-sizing: border-box; background: #1e1e1e; color: var(--screen-ink); border: 1px solid #444; border-radius: 6px; padding: 4px 6px; font: 13px/1.2 ui-monospace, monospace; }
   .io .edrow input.bad { border-color: #e8221b; }
   .io .edrow input[type=number] { cursor: ew-resize; touch-action: none; -moz-appearance: textfield; text-align: right;
@@ -356,7 +359,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.55'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.56'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3277,7 +3280,10 @@ function edRender() {
     const c = rgbaOf((() => { const e = document.createElement('i'); e.style.color = tokens[tk][0]; edProbeBox.append(e); const v = getComputedStyle(e).color; e.remove(); return v; })());
     const row = document.createElement('div'); row.className = 'edrow';
     const name = document.createElement('span'); name.textContent = label; name.title = tk;
-    const sw = document.createElement('span'); sw.className = 'sw'; const fill = document.createElement('i'); sw.append(fill);
+    // the swatch opens the system colour picker
+    const sw = document.createElement('label'); sw.className = 'sw'; sw.title = 'Pick a colour'; const fill = document.createElement('i');
+    const pick = document.createElement('input'); pick.type = 'color'; pick.setAttribute('aria-label', `${label}: pick colour`);
+    sw.append(fill, pick);
     const hx = document.createElement('input'); hx.value = toHex(c); hx.setAttribute('aria-label', `${label} colour (hex)`); hx.spellcheck = false;
     const op = document.createElement('input'); op.type = 'number'; op.min = 0; op.max = 100; op.step = 5; op.value = Math.round(c[3] * 100);
     op.setAttribute('aria-label', `${label} opacity %`);
@@ -3292,7 +3298,10 @@ function edRender() {
       THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
       $io('ioEdName').textContent = theme.name; $io('ioEdReset').hidden = false;
     };
-    hx.addEventListener('input', commit); op.addEventListener('input', () => { commit(); scrubFill(op); }); show();
+    hx.addEventListener('input', () => { commit(); if (/^#[0-9a-f]{6}$/i.test(hx.value.trim())) pick.value = hx.value.trim().toLowerCase(); });
+    pick.value = toHex(c);
+    pick.addEventListener('input', () => { hx.value = pick.value; commit(); });
+    op.addEventListener('input', () => { commit(); scrubFill(op); }); show();
     scrubbable(op); scrubFill(op);
     row.append(name, sw, hx, op); return row;
   }));
