@@ -329,7 +329,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.44'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.45'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2068,7 +2068,8 @@ function xyDesc(r, c) {
   // axis names on the edges: X along the bottom-right corner, Y at the top-left corner
   const axis = r === 7 && c === 7 ? `${xyName(xy.x)} →\nX ${FX[xy.x.fx].n}`
              : r === 0 && c === 0 ? `↑ ${xyName(xy.y)}\nY ${FX[xy.y.fx].n}` : '';
-  const tone = r === row && c === col ? 'sel' : (r === row || c === col ? 'light' : 'empty');
+  // the point = white; its row and column (target axes) use the highlighted-track-column colour
+  const tone = r === row && c === col ? 'sel' : (r === row || c === col ? 'emptycur' : 'empty');
   const value = r === row && c === col ? `${col + 1}·${8 - row}` : '';
   return { label: [axis, value].filter(Boolean).join('\n'), tone };
 }
