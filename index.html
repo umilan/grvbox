@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.9'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.10'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -2535,7 +2535,7 @@ function render() { renderPads(); renderTracks(); renderModes(); renderScreen();
    Every grid cell was created in order (row 0\u20139, column -1\u20138), so its logical spot is known from its index.
    LP MINI is the PRO layout trimmed at the bottom and left: the top row and A\u2013H keep their places,
    the pad area shows the bottom-left 7\u00d77 of the usual 8\u00d78, the right column keeps TAP\u2026CLIPS
-   (no KEYS button: the / key opens KEYS), and tracks 1\u20137 sit on the bottom row
+   (KEYS in the bottom-right corner), and tracks 1\u20137 sit on the bottom row
    (no track 8: it is hidden and silent). On CLIPS the slots move up a row so slot 1 stays visible. */
 [...grid.children].forEach((el, i) => { el.dataset.r = Math.floor(i / 10); el.dataset.c = (i % 10) - 1; });
 function placeOf(r, c) {
@@ -2543,7 +2543,7 @@ function placeOf(r, c) {
   if (r === 0) return c >= 0 && c <= 7 ? [1, c + 1] : null;     // top row of round buttons
   if (r === 9) return c >= 0 && c <= 6 ? [9, c + 2] : null;     // tracks 1\u20137 (no track 8)
   if (c === -1) return r >= 1 && r <= 8 ? [r + 1, 1] : null;    // A\u2013H
-  if (c === 8) return r >= 1 && r <= 7 ? [r + 1, 9] : null;     // TAP \u2026 CLIPS
+  if (c === 8) return r >= 1 && r <= 7 ? [r + 1, 9] : r === 8 ? [9, 9] : null;     // TAP \u2026 CLIPS, KEYS in the bottom-right corner
   return r >= 2 && c <= 6 ? [r, c + 2] : null;                 // pads: bottom-left 7\u00d77 (top pad row and right pad column trimmed)
 }
 function applyLayout() {
