@@ -303,7 +303,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.21'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.22'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1981,7 +1981,9 @@ function padDesc(r, c) {
       if (c === 7) { // right column: pick which effect these sliders edit (same order as page 1)
         if (r === 0) return { tone: 'off' };
         const fx = fxAt(r);
-        return { label: FX[fx].n, tone: fx === tr.fxFocus ? 'sel' : (tr.fxOn[fx] ? 'light' : 'empty') };
+        // edited effect: white when on, grey with OFF when off; the others: light = on, dark = off
+        if (fx === tr.fxFocus) return { label: FX[fx].n + (tr.fxOn[fx] ? '' : '\nOFF'), tone: tr.fxOn[fx] ? 'sel' : 'dark' };
+        return { label: FX[fx].n, tone: tr.fxOn[fx] ? 'light' : 'empty' };
       }
       const p = FX[tr.fxFocus].p, P = tr.fxP[tr.fxFocus];
       if (c >= p.length) return { tone: 'off' };
@@ -2181,9 +2183,18 @@ function padDown(r, c) {
             say(`Tap a slider column for ${axis.toUpperCase()} (or an effect on the right first)`);
           };
         }
-      } else if (c === 7) {
-        tr.fxFocus = fxAt(r);
-        say(`Editing ${FX[tr.fxFocus].n}${tr.fxOn[tr.fxFocus] ? '' : ' (off)'}`);
+      } else if (c === 7) { // tap an effect = edit it; tap the one being edited again = switch it on / off
+        const fx = fxAt(r);
+        if (tr.fxFocus !== fx) {
+          tr.fxFocus = fx;
+          say(`Editing ${FX[fx].n}${tr.fxOn[fx] ? '' : ' (off) · tap again to switch it on'}`);
+        } else {
+          commit();
+          tr.fxOn[fx] = !tr.fxOn[fx];
+          buildFx(curTrack);
+          recordAuto(curTrack, { k: 'on', fx, v: tr.fxOn[fx] });
+          say(`${labelOf(trackButtons[curTrack])} · ${FX[fx].n} ${tr.fxOn[fx] ? 'on' : 'off'}`);
+        }
       } else {
         commit();
         const fx = tr.fxFocus;
