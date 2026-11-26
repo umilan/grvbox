@@ -329,7 +329,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.43'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.44'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2966,14 +2966,14 @@ const THEMES = {
   circuit: { name: 'Novation \u00b7 Circuit',
     pad: ['#0c1330', 47], keyL: ['#7aa0ff', 40], keyD: ['#2f6dff', 45], empty: ['#05070f', 0], emptyCur: ['#0c1330', 47], dim: ['#0a0f22', 47],
     sel: ['#ff4cb0', 56], hot: ['#ffffff', 3], fn: ['#140a24', 51], fnDown: ['#3a1a66', 50], fnOn: ['#9b4cff', 49], bright: ['#d2b0ff', 48] },
-  // Mono: one scale of white for every button. Idle 50 %, idle B (black keys, drum kits, solo) 25 %,
+  // Mono: one scale of white for every button. Idle 50 %, idle B (black keys, drum kits, mute) 25 %,
   // active 75 %, pressed 100 %, non-interactive space dark, a played note +20 % over its state.
   // LEDs: idle B = grey 1, idle = grey 2, active / pressed = white 3, empty = off.
   mono: { name: 'Mono (white levels)', noteBoost: true,
     pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
     sel: ['#bfbfbf', 3], hot: ['#bfbfbf', 3], fn: ['#808080', 2], fnDown: ['#bfbfbf', 3], fnOn: ['#bfbfbf', 3], bright: ['#e0e0e0', 3],
     rec: ['#bfbfbf', 3], recDim: ['#404040', 1], queued: ['#bfbfbf', 3], queuedDim: [null, 1],
-    mute: ['#808080', 2], muteOn: ['#bfbfbf', 3], solo: ['#404040', 1], soloOn: ['#bfbfbf', 3],
+    mute: ['#404040', 1], muteOn: ['#bfbfbf', 3], solo: ['#808080', 2], soloOn: ['#bfbfbf', 3], // MUTE = idle B, SOLO = idle
     arm: ['#808080', 2], copied: ['#bfbfbf', 3], allDim: ['#404040', 1], press: ['#ffffff', 3],
     vars: { '--note-own': 'rgba(255, 255, 255, .2)', '--note-other': 'rgba(255, 255, 255, .2)', '--pulse': 'rgba(255, 255, 255, .2)',
       '--pulse-sel': 'rgba(255, 255, 255, .2)', '--off-edge': 'transparent', '--rec-dim-ink': '#f2f2f2' } },
