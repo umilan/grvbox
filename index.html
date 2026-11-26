@@ -333,7 +333,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.48'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.49'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2975,7 +2975,7 @@ const THEMES = {
   // active 75 %, pressed 100 %, non-interactive space dark, a played note +20 % over its state.
   // LEDs: idle B = grey 1, idle = grey 2, active / pressed = white 3, empty = off.
   mono: { name: 'Mono (white levels)', noteBoost: true,
-    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], xy: ['#404040', 1], step: ['#404040', 1], stepon: ['#808080', 2], stepout: ['#1e1e1e', 0], keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
+    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], xy: ['#404040', 1], step: ['#404040', 1], stepon: ['#bfbfbf', 3], stepout: ['#1e1e1e', 0], // filled steps = active keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
     sel: ['#bfbfbf', 3], hot: ['#bfbfbf', 3], fn: ['#808080', 2], fnDown: ['#bfbfbf', 3], fnOn: ['#bfbfbf', 3], bright: ['#e0e0e0', 3],
     rec: ['#bfbfbf', 3], recDim: ['#404040', 1], queued: ['#bfbfbf', 3], queuedDim: [null, 1],
     mute: ['#404040', 1], muteOn: ['#bfbfbf', 3], solo: ['#808080', 2], soloOn: ['#bfbfbf', 3], // MUTE = idle B, SOLO = idle
