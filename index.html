@@ -128,9 +128,14 @@
     border-radius: 999px; padding: 3px 9px; font: 600 clamp(9px, 1.3vmin, 12px)/1.2 var(--font); letter-spacing: .04em; cursor: pointer; }
   #ioBtn:hover { background: var(--screen-ink); color: var(--screen); }
   #ioBtn:focus-visible, .io :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  #ioDlg { border: 0; padding: 0; border-radius: 10px; background: var(--screen); color: var(--screen-ink);
-    width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 32px); font: 14px/1.4 var(--font); }
-  #ioDlg::backdrop { background: rgba(0, 0, 0, .6); }
+  /* settings = a sidebar on the right; the grid stays usable beside it */
+  :root { --side-w: min(380px, 100vw); }
+  #ioDlg { position: fixed; inset: 0 0 0 auto; margin: 0; z-index: 30; box-sizing: border-box;
+    width: var(--side-w); height: 100dvh; max-height: none; overflow-y: auto;
+    border: 0; border-left: 1px solid #2c2c2c; padding: 0; border-radius: 0;
+    background: var(--screen); color: var(--screen-ink); font: 14px/1.4 var(--font); box-shadow: -12px 0 32px rgba(0, 0, 0, .35); }
+  html.io-open body { padding-right: calc(var(--side-w) + 16px); }
+  html.io-open #ioBtn { background: var(--screen-ink); color: var(--screen); }
   .io { padding: 16px 18px 20px; }
   .io header { display: flex; align-items: center; justify-content: space-between; }
   .io h2 { margin: 0; font-size: 17px; }
@@ -303,7 +308,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.31'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.32'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2993,12 +2998,19 @@ function ioLpDiag() {
   $io('ioLpTest').disabled = !lpOut;
   $io('ioLpProg').disabled = !lpOut || !sysex;
 }
-$io('ioBtn').addEventListener('click', () => { ioDlg.showModal(); ioAudio(); ioRefresh(); });
+// I/O opens / closes the settings sidebar (not modal: the grid keeps working while it's open)
+function ioOpen(on) {
+  if (on && !ioDlg.open) { ioDlg.show(); ioAudio(); ioRefresh(); }
+  else if (!on && ioDlg.open) ioDlg.close();
+  document.documentElement.classList.toggle('io-open', ioDlg.open);
+}
+$io('ioBtn').addEventListener('click', () => ioOpen(!ioDlg.open));
+$io('ioBtn').setAttribute('aria-controls', 'ioDlg');
+ioDlg.addEventListener('close', () => document.documentElement.classList.remove('io-open'));
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && ioDlg.open) ioOpen(false); });
 ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, t]) => [id, t.name]), THEMES[prefs.theme] ? prefs.theme : 'classic');
 $io('ioTheme').addEventListener('change', e => { prefs.theme = e.target.value; savePrefs(); applyTheme(prefs.theme); say(`Theme \u00b7 ${theme.name}`); });
 applyTheme(prefs.theme);
-// a click outside the window (on the dimmed backdrop) closes it; the form fills the dialog, so only the backdrop hits the dialog itself
-ioDlg.addEventListener('click', e => { if (e.target === ioDlg) ioDlg.close(); });
 $io('ioAudioOut').addEventListener('change', e => {
   prefs.audioOut = e.target.value; savePrefs();
   if (AC && AC.setSinkId) AC.setSinkId(prefs.audioOut).then(() => say('Audio output changed'), () => say('Couldn\u2019t switch to that output'));
