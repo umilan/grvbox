@@ -166,6 +166,17 @@
   .io button.x { background: none; border: 0; font-size: 22px; line-height: 1; padding: 2px 6px; }
   .io .note { color: var(--screen-dim); font-size: 12px; margin: 4px 0; font-weight: 400; }
   .io .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+  .io .themepick { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .io .themepick select { max-width: 100%; min-width: 0; }
+  .io .edhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; font-weight: 600; }
+  .io .edrow { display: grid; grid-template-columns: 1fr 22px 82px 54px; gap: 6px; align-items: center; margin: 5px 0; }
+  .io .edrow > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .io .edrow .sw { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #444;
+    background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%), linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%);
+    background-size: 8px 8px; background-position: 0 0, 4px 4px; position: relative; overflow: hidden; }
+  .io .edrow .sw i { position: absolute; inset: 0; }
+  .io .edrow input { width: 100%; box-sizing: border-box; background: #1e1e1e; color: var(--screen-ink); border: 1px solid #444; border-radius: 6px; padding: 4px 6px; font: 13px/1.2 ui-monospace, monospace; }
+  .io .edrow input.bad { border-color: #e8221b; }
   .io .list:empty::before { content: 'None found'; color: var(--screen-dim); font-size: 12px; }
   .hw button {
     appearance: none; border: 1px solid var(--screen-dim); background: transparent; color: var(--screen-dim);
@@ -284,6 +295,13 @@
 <dialog id="ioDlg" aria-labelledby="ioTitle">
   <form method="dialog" class="io">
     <header><h2 id="ioTitle">Settings</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
+    <div id="ioEd" hidden>
+      <div class="edhead"><button type="button" id="ioEdBack">&larr; Back</button><span id="ioEdName"></span><button type="button" id="ioEdReset" class="link">Reset</button></div>
+      <p class="note">Every colour of the theme, as hex + opacity. Changes show at once and are kept as the <b>Custom</b> theme; the Launchpad gets the nearest LED colour.</p>
+      <div class="edrow note"><span></span><span></span><span>hex</span><span>opacity %</span></div>
+      <div id="ioEdList"></div>
+    </div>
+    <div id="ioMain">
     <section>
       <h3>Controller &amp; theme</h3>
       <div class="row">Layout
@@ -292,7 +310,7 @@
           <button type="button" id="hw-mini" role="radio" data-hw="mini">LP MINI</button>
         </div>
       </div>
-      <label class="row">Colours <select id="ioTheme"></select></label>
+      <div class="row">Colours <span class="themepick"><select id="ioTheme" aria-label="Colours"></select><button type="button" id="ioThemeEdit">Edit</button></span></div>
       <p class="note">The layout is picked automatically when a Launchpad is connected. Each theme also sets the Launchpad LED colours.</p>
     </section>
     <section>
@@ -319,6 +337,7 @@
       <p class="note" id="ioAudioNote"></p>
       <button type="button" id="ioNames" class="link">Show device names</button>
     </section>
+    </div>
   </form>
 </dialog>
 <div class="unit">
@@ -333,7 +352,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.51'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.52'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2990,7 +3009,8 @@ const THEMES = {
   // active 75 %, pressed 100 %, non-interactive space dark, a played note +20 % over its state.
   // LEDs: idle B = grey 1, idle = grey 2, active / pressed = white 3, empty = off.
   mono: { name: 'Mono (white levels)', noteBoost: true,
-    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], xy: ['#404040', 1], step: ['#404040', 1], stepon: ['#bfbfbf', 3], stepout: ['#1e1e1e', 0], // filled steps = active keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
+    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], xy: ['#404040', 1], step: ['#404040', 1], stepon: ['#bfbfbf', 3], stepout: ['#1e1e1e', 0], /* filled steps = active */
+    keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
     sel: ['#bfbfbf', 3], hot: ['#bfbfbf', 3], fn: ['#808080', 2], fnDown: ['#bfbfbf', 3], fnOn: ['#bfbfbf', 3], bright: ['#e0e0e0', 3],
     rec: ['#bfbfbf', 3], recDim: ['#404040', 1], queued: ['#bfbfbf', 3], queuedDim: [null, 1],
     mute: ['#404040', 1], muteOn: ['#bfbfbf', 3], solo: ['#808080', 2], soloOn: ['#bfbfbf', 3], // MUTE = idle B, SOLO = idle
@@ -3016,10 +3036,12 @@ const INK_OF = { '--pad': '--pad-ink', '--key-light': '--key-light-ink', '--kit'
   '--solo-off': '--solo-off-ink', '--solo-on': '--solo-on-ink', '--arm-off': '--arm-off-ink', '--copied': '--copied-ink',
   '--all-dim': '--all-dim-ink', '--press': '--press-ink', '--pad-down': '--pad-down-ink' };
 const themeVars = new Set();
-function inkFor(hex) {
-  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+function inkFor(col) {
+  const m = /^rgba?\(([^)]+)\)/.exec(col), n = m ? 0 : parseInt(col.slice(1, 7), 16);
+  const [r, g, b] = m ? m[1].split(',').map(Number) : [n >> 16, (n >> 8) & 255, n & 255];
   return (.2126 * r + .7152 * g + .0722 * b) / 255 > .55 ? '#141414' : '#f2f2f2';
 }
+if (prefs.customTheme) THEMES.custom = prefs.customTheme; // your edited theme
 let theme = THEMES[prefs.theme] || THEMES.classic;
 function applyTheme(id) {
   theme = THEMES[id] || THEMES.classic;
@@ -3182,6 +3204,92 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape' && ioDlg.open) 
 ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, t]) => [id, t.name]), THEMES[prefs.theme] ? prefs.theme : 'classic');
 $io('ioTheme').addEventListener('change', e => { prefs.theme = e.target.value; savePrefs(); applyTheme(prefs.theme); say(`Theme \u00b7 ${theme.name}`); });
 applyTheme(prefs.theme);
+/* ---------- theme editor: every role as hex + opacity ---------- */
+const ED_ROLES = [ // [role, label, probe classes (button that shows this colour), extra attribute]
+  ['pad', 'Idle pads', 'btn pad'], ['keyL', 'Keys: naturals', 'btn pad light'], ['keyD', 'Keys: sharps', 'btn pad dark'],
+  ['kit', 'Drum kits', 'btn pad kit'], ['xy', 'XY pad / axes', 'btn pad xy'], ['step', 'Empty step', 'btn pad step'],
+  ['stepon', 'Step with notes', 'btn pad stepon'], ['stepout', 'Past clip end', 'btn pad stepout'], ['empty', 'Empty slot', 'btn pad empty'],
+  ['emptyCur', 'Selected track column', 'btn pad emptycur'], ['dim', 'Dim / empty song', 'btn pad dim'], ['sel', 'Active / selected', 'btn pad sel'],
+  ['press', 'Pressed', 'btn pad down'], ['fn', 'Round buttons', 'btn fn'], ['fnOn', 'Round buttons: on', 'btn fn', 'aria-pressed'],
+  ['fnDown', 'Round buttons: flash', 'btn fn beat'], ['bright', 'Section page 2', 'btn mode bright', 'aria-checked'],
+  ['rec', 'Recording', 'btn pad rec'], ['recDim', 'Record waiting', 'btn pad recwait'], ['queued', 'Queued clip (flash)', null],
+  ['mute', 'Mute off', 'btn pad muteoff'], ['muteOn', 'Mute on', 'btn pad muteon'], ['solo', 'Solo off', 'btn pad solooff'],
+  ['soloOn', 'Solo on', 'btn pad soloon'], ['arm', 'Arm off', 'btn pad armoff'], ['copied', 'Copied clip', 'btn pad copied'],
+  ['allDim', 'ALL (off)', 'btn pad alldim'],
+];
+const edProbeBox = Object.assign(document.createElement('div'), { className: 'grid' });
+edProbeBox.style.display = 'none'; document.body.append(edProbeBox);
+function rgbaOf(str) { // any CSS colour -> [r, g, b, a]
+  const m = /rgba?\(([^)]+)\)/.exec(str || '');
+  if (!m) return [0, 0, 0, 0];
+  const v = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+  return [v[0], v[1], v[2], v[3] ?? 1];
+}
+function roleColour([role, , cls, attr]) { // what the role looks like right now
+  if (!cls) { // no single button shows it: read its CSS variable
+    const e = document.createElement('i'); e.style.color = `var(--${role})`; edProbeBox.append(e);
+    const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c);
+  }
+  const e = document.createElement('button'); e.className = cls; if (attr) e.setAttribute(attr, 'true');
+  edProbeBox.append(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return rgbaOf(c);
+}
+const hex2 = n => Math.round(n).toString(16).padStart(2, '0');
+const toHex = ([r, g, b]) => `#${hex2(r)}${hex2(g)}${hex2(b)}`;
+const cssOf = (hex, a) => { const n = parseInt(hex.slice(1), 16); return a >= 1 ? hex : `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${+a.toFixed(2)})`; };
+function ledNearest(hex, a) { // LED palette colour closest to the colour over the dark page
+  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map(v => v * a);
+  let best = 0, bd = Infinity;
+  LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2; if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+// start a Custom theme from what's on screen now (keeps the current theme's LED choices)
+function ensureCustom() {
+  if (prefs.theme === 'custom' && THEMES.custom) return THEMES.custom;
+  const base = theme, t = { name: `Custom (from ${base.name})`, noteBoost: base.noteBoost, vars: { ...(base.vars || {}) } };
+  ED_ROLES.forEach(rd => { const c = roleColour(rd); t[rd[0]] = [cssOf(toHex(c), c[3]), led(rd[0])]; });
+  if (base.queuedDim) t.queuedDim = base.queuedDim;
+  THEMES.custom = t; prefs.customTheme = t; prefs.theme = 'custom'; savePrefs();
+  ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, th]) => [id, th.name]), 'custom');
+  applyTheme('custom');
+  return t;
+}
+function edRender() {
+  $io('ioEdName').textContent = theme.name;
+  $io('ioEdReset').hidden = prefs.theme !== 'custom'; // only your own edits can be reset
+  $io('ioEdList').replaceChildren(...ED_ROLES.map(rd => {
+    const [role, label] = rd, c = roleColour(rd), row = document.createElement('div');
+    row.className = 'edrow';
+    const name = document.createElement('span'); name.textContent = label; name.title = role;
+    const sw = document.createElement('span'); sw.className = 'sw'; const fill = document.createElement('i'); sw.append(fill);
+    const hx = document.createElement('input'); hx.value = toHex(c); hx.setAttribute('aria-label', `${label} colour (hex)`); hx.spellcheck = false;
+    const op = document.createElement('input'); op.type = 'number'; op.min = 0; op.max = 100; op.step = 5; op.value = Math.round(c[3] * 100);
+    op.setAttribute('aria-label', `${label} opacity %`); op.title = 'opacity %';
+    const show = () => { fill.style.background = cssOf(hx.value, (+op.value || 0) / 100); };
+    const commit = () => {
+      const ok = /^#[0-9a-f]{6}$/i.test(hx.value.trim()); hx.classList.toggle('bad', !ok);
+      if (!ok) return;
+      const a = Math.max(0, Math.min(100, +op.value || 0)) / 100, t = ensureCustom();
+      t[role] = [cssOf(hx.value.trim().toLowerCase(), a), ledNearest(hx.value.trim(), a)];
+      prefs.customTheme = t; savePrefs(); applyTheme('custom'); show(); $io('ioEdName').textContent = theme.name;
+    };
+    hx.addEventListener('input', commit); op.addEventListener('input', commit); show();
+    row.append(name, sw, hx, op); return row;
+  }));
+}
+function edOpen(on) {
+  $io('ioEd').hidden = !on; $io('ioMain').hidden = on;
+  $io('ioTitle').textContent = on ? 'Theme colours' : 'Settings';
+  if (on) edRender();
+}
+$io('ioThemeEdit').addEventListener('click', () => edOpen(true));
+$io('ioEdBack').addEventListener('click', () => edOpen(false));
+$io('ioEdReset').addEventListener('click', () => { // forget the edits: back to the theme Custom was made from
+  const from = Object.entries(THEMES).find(([id, t]) => id !== 'custom' && THEMES.custom && THEMES.custom.name === `Custom (from ${t.name})`);
+  delete THEMES.custom; delete prefs.customTheme; prefs.theme = from ? from[0] : 'classic'; savePrefs();
+  ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, th]) => [id, th.name]), prefs.theme);
+  applyTheme(prefs.theme); edRender();
+});
+ioDlg.addEventListener('close', () => edOpen(false));
 $io('ioAudioOut').addEventListener('change', e => {
   prefs.audioOut = e.target.value; savePrefs();
   if (AC && AC.setSinkId) AC.setSinkId(prefs.audioOut).then(() => say('Audio output changed'), () => say('Couldn\u2019t switch to that output'));
