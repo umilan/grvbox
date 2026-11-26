@@ -328,7 +328,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.36'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.37'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1923,9 +1923,8 @@ function loopEditDesc(tr, r, c) {
     const on = cl && cl.notes.some(n => n.s === s);
     const auto = cl && (cl.auto || []).some(a => a.s === s);
     const lab = `${s % 8 + 1}${auto ? ' \u2022' : ''}`;
-    if (playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s) return { label: lab, tone: 'hot' };
-    if (tr.sel === s) return { label: lab, tone: 'sel' };
-    return { label: lab, tone: on ? 'dark' : 'white' };
+    const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s ? 'hot' : on ? 'dark' : 'white';
+    return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
   }
   const key = LP_KEYS[r - LOOP_STEP_ROWS - 1], o = LP_OPTS[key];
   if (c === 0) {
@@ -2064,11 +2063,12 @@ function xyDesc(r, c) {
   const value = r === row && c === col ? `${col + 1}·${8 - row}` : '';
   return { label: [axis, value].filter(Boolean).join('\n'), tone };
 }
-// blink phase for the effect being edited on the FX edit page (white ↔ its on/off colour)
-let fxBlink = false;
+// blink phase for anything that is both selected and has a state of its own (edited effect, selected step,
+// edited clip, picked note): it alternates between white and its state colour
+let selBlink = false;
 setInterval(() => {
-  if (activeMode !== 0 || !page2 || xyPad || settings || appSettings || projPage || midiPage) return;
-  fxBlink = !fxBlink;
+  if (xyPad || settings || appSettings || projPage || midiPage) return;
+  selBlink = !selBlink;
   renderPads();
 }, 350);
 function padDesc(r, c) {
@@ -2106,7 +2106,7 @@ function padDesc(r, c) {
         const pc = k % 12;
         if (!tr.split) return { label: NAMES[pc], tone: 'dim' };
         const own = tr.kit[pc];
-        return { label: own ? PRESETS[own.preset].n : NAMES[pc], tone: pc === tr.kitSel ? 'sel' : (r === 6 ? 'dark' : 'light') };
+        return { label: own ? PRESETS[own.preset].n : NAMES[pc], tone: pc === tr.kitSel && selBlink ? 'sel' : (r === 6 ? 'dark' : 'light') }; // picked note blinks
       }
       const L = soundFor(tr, tr.kitSel).L, lvl = 7 - r;
       const dot = activeAuto(curTrack).some(a => a.k === 'sp' && a.i === c) ? ' •' : '';
@@ -2139,7 +2139,7 @@ function padDesc(r, c) {
         const fx = fxAt(r);
         // light = on, dark = off; the edited effect blinks between white and its on/off colour
         const state = tr.fxOn[fx] ? 'light' : 'empty';
-        if (fx === tr.fxFocus) return { label: FX[fx].n + (tr.fxOn[fx] ? '' : '\nOFF'), tone: fxBlink ? 'sel' : state };
+        if (fx === tr.fxFocus) return { label: FX[fx].n + (tr.fxOn[fx] ? '' : '\nOFF'), tone: selBlink ? 'sel' : state };
         return { label: FX[fx].n, tone: state };
       }
       const p = FX[tr.fxFocus].p, P = tr.fxP[tr.fxFocus];
@@ -2171,6 +2171,8 @@ function padDesc(r, c) {
         const isActive = t.active === r;
         if (t.queued === r || (isActive && t.queued === 'stop')) return { label: clab, tone: 'queued' };
         if (isActive && S.rec && c === curTrack) return { label: 'REC', tone: S.recStop ? 'recwait' : 'rec' };
+        if (page2 && c === curTrack && isActive) // the clip being edited: blinks white \u2194 its state
+          return { label: clab, tone: selBlink ? 'sel' : (!t.stopped && playing ? 'hot' : 'dark') };
         if (isActive && !t.stopped) return { label: clab, tone: playing ? 'hot' : 'sel' };
         return { label: clab, tone: 'dark' };
       }
@@ -2182,9 +2184,8 @@ function padDesc(r, c) {
         const notes = cl ? cl.notes.filter(n => n.s === s) : [];
         const auto = cl && (cl.auto || []).some(a => a.s === s); // • = FX automation on this step
         const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s % 8 + 1}`) + (auto ? ' •' : ''); // steps count 1–8 on every row
-        if (playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s) return { label: lab, tone: 'hot' };
-        if (tr.sel === s) return { label: lab, tone: 'sel' };
-        return { label: lab, tone: notes.length || auto ? 'dark' : 'white' };
+        const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s ? 'hot' : notes.length || auto ? 'dark' : 'white';
+        return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
       }
       const n = pianoNote(r - L.kbStart, c, L.pairs, L.base); // one-octave keyboard at the bottom
       if (n === null) return { tone: 'gap' };
