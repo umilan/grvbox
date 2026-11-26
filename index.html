@@ -145,6 +145,7 @@
   .io button.link { background: none; border: 0; padding: 0; color: var(--screen-dim); text-decoration: underline; }
   .io button.x { background: none; border: 0; font-size: 22px; line-height: 1; padding: 2px 6px; }
   .io .note { color: var(--screen-dim); font-size: 12px; margin: 4px 0; font-weight: 400; }
+  .io .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
   .io .list:empty::before { content: 'None found'; color: var(--screen-dim); font-size: 12px; }
   .screen .hw button {
     appearance: none; border: 1px solid var(--screen-dim); background: transparent; color: var(--screen-dim);
@@ -270,6 +271,8 @@
       <div id="ioIns" class="list"></div>
       <h4>Launchpad LEDs</h4>
       <label class="row">Send to <select id="ioLpOut"></select></label>
+      <p class="note" id="ioLpDiag"></p>
+      <div class="btns"><button type="button" id="ioLpTest">Test LEDs</button><button type="button" id="ioLpProg">Switch to Programmer mode</button></div>
       <h4>Track outputs <span class="note">(channel = track number)</span></h4>
       <div id="ioOuts" class="list"></div>
       <h4>Clock</h4>
@@ -295,7 +298,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.14'; // shown in the top bar; bumped with every change
+const APP_VERSION = 'v1.15'; // shown in the top bar; bumped with every change
 document.getElementById('appVer').textContent = APP_VERSION;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -493,6 +496,7 @@ function onMidi(id, data) {
   if (data[0] >= 0xf8) { if (prefs.clockIn) onClock(data[0]); return; }
   const cmd = data[0] & 0xf0, n = data[1], vel = data[2];
   if (id === 'lp') { // the Launchpad is the grid: its buttons press the buttons on screen
+    if (vel > 0) { lpDiag.last = `${cmd === 0xb0 ? 'CC' : 'note'} ${n}`; ioLpDiag(); }
     if (cmd === 0x90 || cmd === 0x80 || cmd === 0xb0) lpPress(n, cmd !== 0x80 && vel > 0);
     return;
   }
@@ -629,6 +633,7 @@ const bus = [];
 function audio() {
   if (!AC) {
     AC = new (window.AudioContext || window.webkitAudioContext)();
+    startMidi(); // MIDI comes on with the first tap, so a connected Launchpad works without opening the MIDI page
     if (prefs.audioOut && AC.setSinkId) AC.setSinkId(prefs.audioOut).catch(() => {});
     const comp = AC.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
@@ -2642,7 +2647,7 @@ function setLayout(hw, why) {
    pads 11\u201388, top row 91\u201398, right column 19\u201389, and on the Pro the left column 10\u201380 and the
    bottom row 101\u2013108 (Pro MK3) or 1\u20138 (Pro 2015). Pads send notes, the round buttons send CC.
    A press on the hardware presses the button in the same spot on screen, and the LEDs copy the screen. */
-const LP_PORT_SKIP = /\bDAW\b|\bDIN\b|MIDIIN\d|MIDIOUT\d/i;
+const LP_PORT_SKIP = /\bDAW\b|\bDIN\b|MIDIIN\d|MIDIOUT\d|live port|midi port/i; // Pro 2015: buttons and LEDs use the Standalone port
 const lpSkip = name => MIDI_SLOTS[0].re.test(name || '') && LP_PORT_SKIP.test(name || '');
 let lpOut = null, lpMk3 = false, lpByHw = new Map();
 const lpLeds = new Map();
@@ -2670,21 +2675,50 @@ function lpConnect(access) {
   let port = null;
   if (prefs.lpOut === 'off') access = { outputs: new Map(), sysexEnabled: false };
   else if (prefs.lpOut) access.outputs.forEach(o => { if (!port && o.state !== 'disconnected' && o.name === prefs.lpOut) port = o; });
-  if (!port) access.outputs.forEach(o => { if (!port && o.state !== 'disconnected' && MIDI_SLOTS[0].re.test(o.name || '') && !LP_PORT_SKIP.test(o.name)) port = o; });
+  if (!port) { // best-scoring Launchpad port: Standalone (Pro 2015) or "... MIDI" (MK3), never Live / DAW / DIN
+    let best = -1;
+    access.outputs.forEach(o => {
+      const n = o.name || '';
+      if (o.state === 'disconnected' || !MIDI_SLOTS[0].re.test(n) || LP_PORT_SKIP.test(n)) return;
+      const sc = /standalone/i.test(n) ? 3 : /live port/i.test(n) ? 0 : /\bMIDI\b/i.test(n) ? 2 : 1;
+      if (sc > best) { best = sc; port = o; }
+    });
+  }
   if (!port && lpOut) { try { lpByHw.forEach((el, id) => lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, 0])); } catch (e) {} }
   if (port === lpOut) return;
   lpOut = port; lpLeds.clear();
   if (!port) return;
   lpMk3 = /mk3|lppro|lpmini|lpx/i.test(port.name);
   applyLayout();
-  if (access.sysexEnabled) {
-    const dev = /mini/i.test(port.name) ? 0x0d : /lpx|launchpad x/i.test(port.name) ? 0x0c : lpMk3 ? 0x0e : null;
-    try {
-      if (dev !== null) port.send([0xf0, 0x00, 0x20, 0x29, 0x02, dev, 0x0e, 0x01, 0xf7]); // MK3 family: Programmer mode
-      else { port.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x21, 0x01, 0xf7]); port.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x2c, 0x03, 0xf7]); } // Pro 2015
-    } catch (e) {}
-  }
-  say(`${port.name} \u00b7 Launchpad LEDs on${access.sysexEnabled ? '' : ' \u00b7 set it to Programmer mode'}`);
+  lpProgrammer();
+  say(`${port.name} \u00b7 Launchpad LEDs on${lpDiag.prog === 'sent' ? '' : ' \u00b7 set it to Programmer mode'}`);
+  ioRefresh();
+}
+// diagnostics shown in Audio & MIDI settings
+const lpDiag = { prog: '', last: '', err: '', sent: 0 };
+// switch the Launchpad to Programmer mode (needs SysEx permission)
+function lpProgrammer() {
+  if (!lpOut) return;
+  if (!midiAccess || !midiAccess.sysexEnabled) { lpDiag.prog = 'nosysex'; return; }
+  const n = lpOut.name, dev = /mini/i.test(n) ? 0x0d : /lpx|launchpad x/i.test(n) ? 0x0c : lpMk3 ? 0x0e : null;
+  try {
+    if (dev !== null) lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, dev, 0x0e, 0x01, 0xf7]); // MK3 family: Programmer mode
+    else { lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x21, 0x01, 0xf7]); lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x2c, 0x03, 0xf7]); } // Pro 2015
+    lpDiag.prog = 'sent';
+  } catch (e) { lpDiag.prog = 'failed'; lpDiag.err = e.message; }
+  lpLeds.clear(); // repaint after the mode change
+}
+// LED test: every mapped button cycles through red, green, blue, white, then the screen colours come back
+let lpTesting = false;
+function lpTest() {
+  if (!lpOut) return say('No Launchpad output');
+  lpTesting = true;
+  [5, 21, 45, 3].forEach((col, k) => setTimeout(() => {
+    try { lpByHw.forEach((el, id) => lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, col])); lpDiag.err = ''; }
+    catch (e) { lpDiag.err = e.message; }
+    ioLpDiag();
+  }, k * 500));
+  setTimeout(() => { lpTesting = false; lpLeds.clear(); }, 2000);
 }
 // nearest colour in the Launchpad palette (velocity = colour index)
 const LP_PAL = [[0, 0, 0, 0], [1, 28, 28, 28], [2, 124, 124, 124], [3, 255, 255, 255], [4, 255, 76, 76], [5, 255, 0, 0],
@@ -2701,15 +2735,16 @@ function lpColor(el) {
   return best;
 }
 function lpPaint() {
-  if (!lpOut) return;
+  if (!lpOut || lpTesting) return;
   try {
     lpByHw.forEach((el, id) => {
       const col = lpColor(el);
       if (lpLeds.get(id) === col) return;
       lpLeds.set(id, col);
       lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, col]);
+      lpDiag.sent++;
     });
-  } catch (e) { lpOut = null; }
+  } catch (e) { if (lpDiag.err !== e.message) { lpDiag.err = e.message; ioLpDiag(); } lpLeds.clear(); } // keep trying
 }
 setInterval(lpPaint, 50);
 addEventListener('pagehide', () => { if (lpOut) try { lpByHw.forEach((el, id) => lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, 0])); } catch (e) {} });
@@ -2763,8 +2798,22 @@ function ioRefresh() {
     sel.addEventListener('change', () => { t.midiOut = sel.value || null; if (midiPage) render(); });
     row.append(name, sel); return row;
   }));
+  ioLpDiag();
   $io('ioClockOut').checked = !!prefs.clockOut;
   $io('ioClockIn').checked = !!prefs.clockIn;
+}
+// the Launchpad status lines only (updated on every press without rebuilding the lists)
+function ioLpDiag() {
+  if (!ioDlg.open) return;
+  const sysex = !!(midiAccess && midiAccess.sysexEnabled);
+  $io('ioLpDiag').innerText = !lpOut ? 'No Launchpad output found.' : [
+    `Sending to: ${lpOut.name} (${lpMk3 ? 'MK3 numbering' : 'Pro 2015 numbering'})`,
+    `Programmer mode: ${lpDiag.prog === 'sent' ? 'switched on by the app' : sysex ? 'not sent' : 'set it on the Launchpad (this browser didn\u2019t allow SysEx)'}`,
+    `LED messages sent: ${lpDiag.sent}${lpDiag.err ? ' \u00b7 error: ' + lpDiag.err : ''}`,
+    `Last Launchpad press: ${lpDiag.last || 'none yet'}`,
+  ].join('\n');
+  $io('ioLpTest').disabled = !lpOut;
+  $io('ioLpProg').disabled = !lpOut || !sysex;
 }
 $io('ioBtn').addEventListener('click', () => { ioDlg.showModal(); ioAudio(); ioRefresh(); });
 $io('ioAudioOut').addEventListener('change', e => {
@@ -2776,6 +2825,8 @@ $io('ioNames').addEventListener('click', async () => {
   ioAudio();
 });
 $io('ioMidiOn').addEventListener('click', () => { startMidi(); ioRefresh(); });
+$io('ioLpTest').addEventListener('click', lpTest);
+$io('ioLpProg').addEventListener('click', () => { lpProgrammer(); ioRefresh(); });
 $io('ioLpOut').addEventListener('change', e => { prefs.lpOut = e.target.value; savePrefs(); if (midiAccess) lpConnect(midiAccess); });
 $io('ioClockOut').addEventListener('change', e => { prefs.clockOut = e.target.checked; savePrefs(); if (midiPage) render(); });
 $io('ioClockIn').addEventListener('change', e => { prefs.clockIn = e.target.checked; savePrefs(); if (midiPage) render(); });
