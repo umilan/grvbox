@@ -210,7 +210,7 @@
   .btn.pad.light { background: var(--key-light); color: var(--key-light-ink, var(--sel-ink)); }
   .btn.pad.step { background: var(--step, var(--pad)); color: var(--step-ink, var(--pad-ink)); }
   .btn.pad.stepon { background: var(--stepon, var(--key-dark)); color: var(--stepon-ink, var(--sel-ink)); }
-  .btn.pad.stepout { background: var(--stepout, var(--empty)); }
+  .btn.pad.stepout { background: var(--stepout, transparent); } /* past the clip's end: no colour (hold one to extend the clip) */
   .btn.pad.xy { background: var(--xy, var(--pad)); color: var(--xy-ink, var(--pad-ink)); }
   .btn.pad.kit { background: var(--kit, var(--key-light)); color: var(--kit-ink, var(--sel-ink)); }
   .btn.pad.dark { background: var(--key-dark); color: var(--key-dark-ink, var(--sel-ink)); }
@@ -333,7 +333,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.47'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.48'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1935,7 +1935,7 @@ function loopEditDesc(tr, r, c) {
     if (s >= len) return { label: '', tone: 'stepout' };
     const on = cl && cl.notes.some(n => n.s === s);
     const auto = cl && (cl.auto || []).some(a => a.s === s);
-    const lab = `${s % 8 + 1}${auto ? ' \u2022' : ''}`;
+    const lab = `${s + 1}${auto ? ' \u2022' : ''}`;
     const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s ? 'sel' : on ? 'stepon' : 'step'; // playhead = white
     return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
   }
@@ -2197,7 +2197,7 @@ function padDesc(r, c) {
         if (s >= L.len) return { label: '', tone: 'stepout' };
         const notes = cl ? cl.notes.filter(n => n.s === s) : [];
         const auto = cl && (cl.auto || []).some(a => a.s === s); // • = FX automation on this step
-        const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s % 8 + 1}`) + (auto ? ' •' : ''); // steps count 1–8 on every row
+        const lab = (notes.length ? noteName(notes[0].n) + (notes.length > 1 ? '+' : '') : `${s + 1}`) + (auto ? ' •' : ''); // step numbers run through the whole clip (1 … 32)
         const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % L.len === s ? 'sel' : notes.length || auto ? 'stepon' : 'step'; // playhead = white
         return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
       }
@@ -3021,7 +3021,7 @@ function applyTheme(id) {
   Object.entries(theme.vars || {}).forEach(([v, val]) => { st.setProperty(v, val); themeVars.add(v); }); // overlays etc.
   lpLeds.clear(); // repaint the Launchpad
 }
-const ROLE_FALLBACK = { kit: 'keyL', xy: 'pad', step: 'pad', stepon: 'keyD', stepout: 'empty' }; // roles a theme may leave out
+const ROLE_FALLBACK = { kit: 'keyL', xy: 'pad', step: 'pad', stepon: 'keyD' }; // stepout has none: off // roles a theme may leave out
 const led = role => (theme[role] || SHARED_ROLES[role] || theme[ROLE_FALLBACK[role]] || [, 0])[1];
 const ledFaint = i => i <= 0 ? 0 : i <= 3 ? 1 : i - ((i - 4) % 4) + 3; // the same hue's faint step
 const PAD_ROLE = { light: 'keyL', kit: 'kit', xy: 'xy', stepon: 'stepon', stepout: 'stepout', step: 'step', dark: 'keyD', muteoff: 'mute', muteon: 'muteOn', solooff: 'solo', soloon: 'soloOn', copied: 'copied',
