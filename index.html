@@ -297,7 +297,7 @@
     <header><h2 id="ioTitle">Settings</h2><button type="submit" class="x" aria-label="Close">&times;</button></header>
     <div id="ioEd" hidden>
       <div class="edhead"><button type="button" id="ioEdBack">&larr; Back</button><span id="ioEdName"></span><button type="button" id="ioEdReset" class="link">Reset</button></div>
-      <p class="note">Every colour of the theme, as hex + opacity. Changes show at once and are kept as the <b>Custom</b> theme; the Launchpad gets the nearest LED colour.</p>
+      <p class="note">The theme's seven colours, as hex + opacity; every button uses one of them. Changes show at once and are kept as the <b>Custom</b> theme; the Launchpad gets the nearest LED colour.</p>
       <div class="edrow note"><span></span><span></span><span>hex</span><span>opacity %</span></div>
       <div id="ioEdList"></div>
     </div>
@@ -352,7 +352,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.52'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.53'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3005,21 +3005,40 @@ const THEMES = {
   circuit: { name: 'Novation \u00b7 Circuit',
     pad: ['#0c1330', 47], keyL: ['#7aa0ff', 40], keyD: ['#2f6dff', 45], empty: ['#05070f', 0], emptyCur: ['#0c1330', 47], dim: ['#0a0f22', 47],
     sel: ['#ff4cb0', 56], hot: ['#ffffff', 3], fn: ['#140a24', 51], fnDown: ['#3a1a66', 50], fnOn: ['#9b4cff', 49], bright: ['#d2b0ff', 48] },
-  // Mono: one scale of white for every button. Idle 50 %, idle B (black keys, drum kits, mute) 25 %,
-  // active 75 %, pressed 100 %, non-interactive space dark, a played note +20 % over its state.
-  // LEDs: idle B = grey 1, idle = grey 2, active / pressed = white 3, empty = off.
-  mono: { name: 'Mono (white levels)', noteBoost: true,
-    pad: ['#808080', 2], keyL: ['#808080', 2], kit: ['#404040', 1], xy: ['#404040', 1], step: ['#404040', 1], stepon: ['#bfbfbf', 3], stepout: ['#1e1e1e', 0], /* filled steps = active */
-    keyD: ['#404040', 1], empty: ['#808080', 2], emptyCur: ['#8d8d8d', 2], dim: ['#404040', 1], // empty clip slots are idle; the selected track's column +10 % white
-    sel: ['#bfbfbf', 3], hot: ['#bfbfbf', 3], fn: ['#808080', 2], fnDown: ['#bfbfbf', 3], fnOn: ['#bfbfbf', 3], bright: ['#e0e0e0', 3],
-    rec: ['#bfbfbf', 3], recDim: ['#404040', 1], queued: ['#bfbfbf', 3], queuedDim: [null, 1],
-    mute: ['#404040', 1], muteOn: ['#bfbfbf', 3], solo: ['#808080', 2], soloOn: ['#bfbfbf', 3], // MUTE = idle B, SOLO = idle
-    arm: ['#808080', 2], copied: ['#bfbfbf', 3], allDim: ['#404040', 1], press: ['#ffffff', 3],
-    vars: { '--note-own': 'rgba(255, 255, 255, .2)', '--note-other': 'rgba(255, 255, 255, .2)', '--pulse': 'rgba(255, 255, 255, .2)',
-      '--pulse-sel': 'rgba(255, 255, 255, .2)', '--off-edge': 'transparent', '--rec-dim-ink': '#f2f2f2' } },
+  // Mono: built from your seven colours (see TOKEN_THEME below)
+  mono: null,
   // the look before themes: LEDs copy the nearest colour of each button on screen
   original: { name: 'Original (LEDs copy the screen)', css: false, match: true },
 };
+/* ---------- token themes: a few named colours, every button role uses one of them ----------
+   idle = interactive, off · idleB = second idle (black keys, drum kits, MUTE, empty steps, XY)
+   active = on / selected / filled · space = non-interactive space · pressed = being pressed
+   played = overlay on a note while it sounds · column = the selected track's column */
+const TOKENS = [
+  ['idle', 'Idle (off)'], ['idleB', 'Idle B'], ['active', 'Active'], ['space', 'Non-interactive space'],
+  ['pressed', 'Pressed'], ['played', 'Currently played note (overlay)'], ['column', 'Highlighted track column'],
+];
+const TOKEN_ROLES = { // role -> token
+  pad: 'idle', keyL: 'idle', empty: 'idle', fn: 'idle', solo: 'idle', arm: 'idle',
+  keyD: 'idleB', kit: 'idleB', xy: 'idleB', step: 'idleB', dim: 'idleB', recDim: 'idleB', queuedDim: 'idleB', mute: 'idleB', allDim: 'idleB',
+  sel: 'active', hot: 'active', stepon: 'active', fnDown: 'active', fnOn: 'active', rec: 'active', queued: 'active',
+  muteOn: 'active', soloOn: 'active', copied: 'active',
+  bright: 'pressed', press: 'pressed', stepout: 'space', emptyCur: 'column',
+};
+const MONO_TOKENS = {
+  idle: ['#808080', 2], idleB: ['#404040', 1], active: ['#bfbfbf', 3], space: ['#1e1e1e', 0],
+  pressed: ['#ffffff', 3], played: ['rgba(255, 255, 255, 0.2)', 0], column: ['#8d8d8d', 2],
+};
+function tokenTheme(name, tokens) {
+  const t = { name, tokens, noteBoost: true };
+  Object.entries(TOKEN_ROLES).forEach(([role, tk]) => { t[role] = [...tokens[tk]]; });
+  t.queuedDim = [null, tokens.idleB[1]];
+  const pl = tokens.played[0];
+  t.vars = { '--note-own': pl, '--note-other': pl, '--pulse': pl, '--pulse-sel': pl, '--off-edge': 'transparent', '--rec-dim-ink': '#f2f2f2',
+    '--page': tokens.space[0] }; // non-interactive space = the page behind the grid
+  return t;
+}
+THEMES.mono = tokenTheme('Mono (white levels)', MONO_TOKENS);
 // which CSS variables each role paints (inks are worked out from the colour's lightness)
 const ROLE_VARS = {
   pad: ['--pad'], keyL: ['--key-light'], kit: ['--kit'], xy: ['--xy'], step: ['--step'], stepon: ['--stepon'], stepout: ['--stepout'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
@@ -3041,7 +3060,7 @@ function inkFor(col) {
   const [r, g, b] = m ? m[1].split(',').map(Number) : [n >> 16, (n >> 8) & 255, n & 255];
   return (.2126 * r + .7152 * g + .0722 * b) / 255 > .55 ? '#141414' : '#f2f2f2';
 }
-if (prefs.customTheme) THEMES.custom = prefs.customTheme; // your edited theme
+if (prefs.customTheme && prefs.customTheme.tokens) THEMES.custom = tokenTheme(prefs.customTheme.name, prefs.customTheme.tokens); // your edited theme
 let theme = THEMES[prefs.theme] || THEMES.classic;
 function applyTheme(id) {
   theme = THEMES[id] || THEMES.classic;
@@ -3204,19 +3223,7 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape' && ioDlg.open) 
 ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, t]) => [id, t.name]), THEMES[prefs.theme] ? prefs.theme : 'classic');
 $io('ioTheme').addEventListener('change', e => { prefs.theme = e.target.value; savePrefs(); applyTheme(prefs.theme); say(`Theme \u00b7 ${theme.name}`); });
 applyTheme(prefs.theme);
-/* ---------- theme editor: every role as hex + opacity ---------- */
-const ED_ROLES = [ // [role, label, probe classes (button that shows this colour), extra attribute]
-  ['pad', 'Idle pads', 'btn pad'], ['keyL', 'Keys: naturals', 'btn pad light'], ['keyD', 'Keys: sharps', 'btn pad dark'],
-  ['kit', 'Drum kits', 'btn pad kit'], ['xy', 'XY pad / axes', 'btn pad xy'], ['step', 'Empty step', 'btn pad step'],
-  ['stepon', 'Step with notes', 'btn pad stepon'], ['stepout', 'Past clip end', 'btn pad stepout'], ['empty', 'Empty slot', 'btn pad empty'],
-  ['emptyCur', 'Selected track column', 'btn pad emptycur'], ['dim', 'Dim / empty song', 'btn pad dim'], ['sel', 'Active / selected', 'btn pad sel'],
-  ['press', 'Pressed', 'btn pad down'], ['fn', 'Round buttons', 'btn fn'], ['fnOn', 'Round buttons: on', 'btn fn', 'aria-pressed'],
-  ['fnDown', 'Round buttons: flash', 'btn fn beat'], ['bright', 'Section page 2', 'btn mode bright', 'aria-checked'],
-  ['rec', 'Recording', 'btn pad rec'], ['recDim', 'Record waiting', 'btn pad recwait'], ['queued', 'Queued clip (flash)', null],
-  ['mute', 'Mute off', 'btn pad muteoff'], ['muteOn', 'Mute on', 'btn pad muteon'], ['solo', 'Solo off', 'btn pad solooff'],
-  ['soloOn', 'Solo on', 'btn pad soloon'], ['arm', 'Arm off', 'btn pad armoff'], ['copied', 'Copied clip', 'btn pad copied'],
-  ['allDim', 'ALL (off)', 'btn pad alldim'],
-];
+/* ---------- theme editor: your seven colours (tokens) as hex + opacity ---------- */
 const edProbeBox = Object.assign(document.createElement('div'), { className: 'grid' });
 edProbeBox.style.display = 'none'; document.body.append(edProbeBox);
 function rgbaOf(str) { // any CSS colour -> [r, g, b, a]
@@ -3225,13 +3232,9 @@ function rgbaOf(str) { // any CSS colour -> [r, g, b, a]
   const v = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
   return [v[0], v[1], v[2], v[3] ?? 1];
 }
-function roleColour([role, , cls, attr]) { // what the role looks like right now
-  if (!cls) { // no single button shows it: read its CSS variable
-    const e = document.createElement('i'); e.style.color = `var(--${role})`; edProbeBox.append(e);
-    const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c);
-  }
+function probe(cls, attr, prop = 'backgroundColor') {
   const e = document.createElement('button'); e.className = cls; if (attr) e.setAttribute(attr, 'true');
-  edProbeBox.append(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return rgbaOf(c);
+  edProbeBox.append(e); const c = getComputedStyle(e)[prop]; e.remove(); return rgbaOf(c);
 }
 const hex2 = n => Math.round(n).toString(16).padStart(2, '0');
 const toHex = ([r, g, b]) => `#${hex2(r)}${hex2(g)}${hex2(b)}`;
@@ -3242,35 +3245,47 @@ function ledNearest(hex, a) { // LED palette colour closest to the colour over t
   LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2; if (d < bd) { bd = d; best = i; } });
   return best;
 }
-// start a Custom theme from what's on screen now (keeps the current theme's LED choices)
+// the seven colours of the current theme (a theme without tokens: read from what's on screen)
+function currentTokens() {
+  if (theme.tokens) return theme.tokens;
+  const look = { idle: probe('btn pad'), idleB: probe('btn pad dark'), active: probe('btn pad sel'), space: rgbaOf(getComputedStyle(document.body).backgroundColor),
+    pressed: probe('btn pad down'), played: (() => { const e = document.createElement('i'); e.style.color = 'var(--note-own)'; edProbeBox.append(e); const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c); })(),
+    column: probe('btn pad emptycur') };
+  const leds = { idle: led('pad'), idleB: led('keyD'), active: led('sel'), space: 0, pressed: led('press'), played: 0, column: led('emptyCur') };
+  return Object.fromEntries(TOKENS.map(([k]) => [k, [cssOf(toHex(look[k]), look[k][3]), leds[k]]]));
+}
+// first edit: a Custom theme made of the current seven colours
 function ensureCustom() {
   if (prefs.theme === 'custom' && THEMES.custom) return THEMES.custom;
-  const base = theme, t = { name: `Custom (from ${base.name})`, noteBoost: base.noteBoost, vars: { ...(base.vars || {}) } };
-  ED_ROLES.forEach(rd => { const c = roleColour(rd); t[rd[0]] = [cssOf(toHex(c), c[3]), led(rd[0])]; });
-  if (base.queuedDim) t.queuedDim = base.queuedDim;
-  THEMES.custom = t; prefs.customTheme = t; prefs.theme = 'custom'; savePrefs();
+  const base = theme, tokens = JSON.parse(JSON.stringify(currentTokens()));
+  THEMES.custom = tokenTheme(`Custom (from ${base.name})`, tokens);
+  prefs.customTheme = { name: THEMES.custom.name, tokens }; prefs.theme = 'custom'; savePrefs();
   ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, th]) => [id, th.name]), 'custom');
   applyTheme('custom');
-  return t;
+  return THEMES.custom;
 }
 function edRender() {
   $io('ioEdName').textContent = theme.name;
   $io('ioEdReset').hidden = prefs.theme !== 'custom'; // only your own edits can be reset
-  $io('ioEdList').replaceChildren(...ED_ROLES.map(rd => {
-    const [role, label] = rd, c = roleColour(rd), row = document.createElement('div');
-    row.className = 'edrow';
-    const name = document.createElement('span'); name.textContent = label; name.title = role;
+  const tokens = currentTokens();
+  $io('ioEdList').replaceChildren(...TOKENS.map(([tk, label]) => {
+    const c = rgbaOf((() => { const e = document.createElement('i'); e.style.color = tokens[tk][0]; edProbeBox.append(e); const v = getComputedStyle(e).color; e.remove(); return v; })());
+    const row = document.createElement('div'); row.className = 'edrow';
+    const name = document.createElement('span'); name.textContent = label; name.title = tk;
     const sw = document.createElement('span'); sw.className = 'sw'; const fill = document.createElement('i'); sw.append(fill);
     const hx = document.createElement('input'); hx.value = toHex(c); hx.setAttribute('aria-label', `${label} colour (hex)`); hx.spellcheck = false;
     const op = document.createElement('input'); op.type = 'number'; op.min = 0; op.max = 100; op.step = 5; op.value = Math.round(c[3] * 100);
-    op.setAttribute('aria-label', `${label} opacity %`); op.title = 'opacity %';
-    const show = () => { fill.style.background = cssOf(hx.value, (+op.value || 0) / 100); };
+    op.setAttribute('aria-label', `${label} opacity %`);
+    const show = () => { fill.style.background = cssOf(hx.value.trim(), (+op.value || 0) / 100); };
     const commit = () => {
       const ok = /^#[0-9a-f]{6}$/i.test(hx.value.trim()); hx.classList.toggle('bad', !ok);
       if (!ok) return;
-      const a = Math.max(0, Math.min(100, +op.value || 0)) / 100, t = ensureCustom();
-      t[role] = [cssOf(hx.value.trim().toLowerCase(), a), ledNearest(hx.value.trim(), a)];
-      prefs.customTheme = t; savePrefs(); applyTheme('custom'); show(); $io('ioEdName').textContent = theme.name;
+      const a = Math.max(0, Math.min(100, +op.value || 0)) / 100;
+      ensureCustom();
+      const tk2 = prefs.customTheme.tokens;
+      tk2[tk] = [cssOf(hx.value.trim().toLowerCase(), a), tk === 'played' || tk === 'space' ? 0 : ledNearest(hx.value.trim(), a)];
+      THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
+      $io('ioEdName').textContent = theme.name; $io('ioEdReset').hidden = false;
     };
     hx.addEventListener('input', commit); op.addEventListener('input', commit); show();
     row.append(name, sw, hx, op); return row;
@@ -3285,7 +3300,7 @@ $io('ioThemeEdit').addEventListener('click', () => edOpen(true));
 $io('ioEdBack').addEventListener('click', () => edOpen(false));
 $io('ioEdReset').addEventListener('click', () => { // forget the edits: back to the theme Custom was made from
   const from = Object.entries(THEMES).find(([id, t]) => id !== 'custom' && THEMES.custom && THEMES.custom.name === `Custom (from ${t.name})`);
-  delete THEMES.custom; delete prefs.customTheme; prefs.theme = from ? from[0] : 'classic'; savePrefs();
+  delete THEMES.custom; delete prefs.customTheme; prefs.theme = from ? from[0] : 'mono'; savePrefs();
   ioSelect($io('ioTheme'), Object.entries(THEMES).map(([id, th]) => [id, th.name]), prefs.theme);
   applyTheme(prefs.theme); edRender();
 });
