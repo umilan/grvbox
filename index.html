@@ -367,7 +367,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.67'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.68'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -829,7 +829,7 @@ function clipPadFor(ti) {
   if (slot < 0 || tr.stopped || !tr.clips[slot]) return null;
   let r = slot;
   if (isMini() && !page2) r = slot + 1;                                   // LP MINI shifts the slots down a row
-  if (page2 && r >= (isLoopTrack(S.tracks[curTrack]) ? 1 : 2)) return null; // step edit shows only the preview rows
+  if (page2 && r >= 2) return null; // step edit shows only the preview rows
   if (r > 5 || (isMini() && r < 1)) return null;
   return pads[r] && pads[r][ti];
 }
@@ -1208,7 +1208,7 @@ const SOUND_AUTO = new Set(['pre', 'sp', 'kit', 'lp']);
 function applyAuto(ti, a) {
   const tr = S.tracks[ti];
   if (a.k === 'lp') {
-    lpOf(tr)[a.i] = a.v;
+    lpOf(tr)[a.i] = a.lv === 3 ? a.v : lpV2to3(a.i, a.v); // automation recorded with the 7-choice sliders is converted
     const L = loopSlots[tr.loop];
     if (a.i === 'pitch' && L && L.buf && lpVal(tr, 'pitch')) shiftedBuf(L, lpVal(tr, 'pitch'));
     if (ti === curTrack && activeMode === 2 && page2) setTimeout(renderPads, 0);
@@ -1903,16 +1903,19 @@ function removeLoop(c) {
 function stopLoop(t) { if (t._loopSrc) { try { t._loopSrc.stop(); } catch (e) {} t._loopSrc = null; } }
 // Loop edit settings per track (CLIPS page 2 when the track plays an audio loop): each is an index into
 // LP_OPTS, slider rows 7\u21922 = index 0\u21925 (bottom = lowest)
-const LP_OPTS = { // 7 choices each (slider rows 8\u21922, bottom = lowest)
-  speed: { name: 'SPEED', v: [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8], lab: ['\u00f78', '\u00f74', '\u00f72', '\u00d71', '\u00d72', '\u00d74', '\u00d78'], def: 3 },
-  start: { name: 'START', v: [0, 1 / 8, 1 / 4, 3 / 8, 1 / 2, 5 / 8, 3 / 4], lab: ['0', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4'], def: 0 },
-  frac: { name: 'LENGTH', v: [1 / 64, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1], lab: ['1/64', '1/32', '1/16', '1/8', '1/4', '1/2', 'ALL'], def: 6 },
-  pitch: { name: 'PITCH', v: [-9, -6, -3, 0, 3, 6, 9], lab: ['-9', '-6', '-3', '0', '+3', '+6', '+9'], def: 3 },
+const LP_OPTS = { // 8 choices each: a horizontal fader across the row, lowest on the left
+  speed: { name: 'SPEED', v: [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8], lab: ['\u00f716', '\u00f78', '\u00f74', '\u00f72', '\u00d71', '\u00d72', '\u00d74', '\u00d78'], def: 4 },
+  start: { name: 'START', v: [0, 1 / 8, 1 / 4, 3 / 8, 1 / 2, 5 / 8, 3 / 4, 7 / 8], lab: ['0', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8'], def: 0 },
+  frac: { name: 'LENGTH', v: [1 / 64, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 3 / 4, 1], lab: ['1/64', '1/32', '1/16', '1/8', '1/4', '1/2', '3/4', 'ALL'], def: 7 },
+  pitch: { name: 'PITCH', v: [-12, -9, -6, -3, 0, 3, 6, 9], lab: ['-12', '-9', '-6', '-3', '0', '+3', '+6', '+9'], def: 4 },
 };
 const LP_KEYS = ['speed', 'start', 'frac', 'pitch'];
+// settings saved with the 7-choice sliders (v2): same values, new positions
+const lpV2to3 = (k, i) => k === 'speed' || k === 'pitch' ? i + 1 : k === 'frac' && i === 6 ? 7 : i;
 function lpOf(tr) {
   if (tr.lp && !tr.lp.v) tr.lp = { v: 2, speed: tr.lp.speed, start: tr.lp.start, frac: tr.lp.frac + 1, pitch: 3 }; // older 6-step settings
-  return tr.lp || (tr.lp = { v: 2, ...Object.fromEntries(LP_KEYS.map(k => [k, LP_OPTS[k].def])) });
+  if (tr.lp && tr.lp.v === 2) tr.lp = { v: 3, ...Object.fromEntries(LP_KEYS.map(k => [k, lpV2to3(k, tr.lp[k])])) };
+  return tr.lp || (tr.lp = { v: 3, ...Object.fromEntries(LP_KEYS.map(k => [k, LP_OPTS[k].def])) });
 }
 const isLoopTrack = tr => tr.loop >= 0 && !!loopSlots[tr.loop];
 const lpVal = (tr, k) => LP_OPTS[k].v[lpOf(tr)[k]];
@@ -1980,11 +1983,11 @@ function shiftedBuf(L, semis) {
 }
 // Loop edit page: row 1 = clip preview, rows 2\u20134 = the clip's steps (any note launches the loop),
 // rows 5\u20138 = the four loop sliders lying flat (name on the left, 7 choices to the right, low \u2192 high)
-const LOOP_STEP_ROWS = 3;
+const LOOP_STEP_ROWS = 2; // rows 3–4 (rows 1–2 preview the clips)
 function loopEditDesc(tr, r, c) {
-  if (r < 1) return { tone: 'off' };
-  if (r <= LOOP_STEP_ROWS) { // steps
-    const cl = tr.clips[tr.active], len = clipLen(cl), s = (r - 1) * 8 + c;
+  if (r < 2) return { tone: 'off' };
+  if (r < 2 + LOOP_STEP_ROWS) { // steps
+    const cl = tr.clips[tr.active], len = clipLen(cl), s = (r - 2) * 8 + c;
     if (s >= len) return { label: '', tone: 'stepout' };
     const on = cl && cl.notes.some(n => n.s === s);
     const auto = cl && (cl.auto || []).some(a => a.s === s);
@@ -1992,18 +1995,15 @@ function loopEditDesc(tr, r, c) {
     const state = playing && cl && !tr.stopped && curStep >= 0 && curStep % len === s ? 'playhead' : on ? 'stepon' : 'step';
     return { label: lab, tone: tr.sel === s && selBlink ? 'sel' : state }; // selected step blinks white \u2194 its state
   }
-  const key = LP_KEYS[r - LOOP_STEP_ROWS - 1], o = LP_OPTS[key];
-  if (c === 0) {
-    const dot = activeAuto(curTrack).some(a => a.k === 'lp' && a.i === key) ? ' \u2022' : '';
-    return { label: `${o.name}${dot}`, tone: 'alldim' };
-  }
-  const idx = c - 1;
-  return { label: o.lab[idx], tone: lpOf(tr)[key] === idx ? 'sel' : 'white' };
+  // faders like MIX / FX: lit up to the chosen value; the first pad carries the name
+  const key = LP_KEYS[r - 2 - LOOP_STEP_ROWS], o = LP_OPTS[key], cur = lpOf(tr)[key];
+  const dot = activeAuto(curTrack).some(a => a.k === 'lp' && a.i === key) ? ' \u2022' : '';
+  return { label: c === 0 ? `${o.name}${dot}\n${o.lab[0]}` : o.lab[c], tone: c <= cur ? 'sel' : 'white' };
 }
 function loopEditDown(tr, r, c, info) {
-  if (r < 1) return;
-  if (r <= LOOP_STEP_ROWS) { // steps: tap = launch step on/off, hold = clip length ends here
-    const s = (r - 1) * 8 + c;
+  if (r < 2) return;
+  if (r < 2 + LOOP_STEP_ROWS) { // steps: tap = launch step on/off, hold = clip length ends here
+    const s = (r - 2) * 8 + c;
     info.hold = setTimeout(() => {
       info.held = true; commit(); ensureClip(tr);
       tr.clips[tr.active].len = s + 1;
@@ -2018,13 +2018,12 @@ function loopEditDown(tr, r, c, info) {
     };
     return;
   }
-  const key = LP_KEYS[r - LOOP_STEP_ROWS - 1];
+  const key = LP_KEYS[r - 2 - LOOP_STEP_ROWS];
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); return clearAuto(curTrack, a => a.k === 'lp' && a.i === key, LP_OPTS[key].name); }
-  if (c === 0) return say(`${LP_OPTS[key].name} \u00b7 pick a value to the right`);
-  const idx = c - 1;
+  const idx = c;
   commit();
   lpOf(tr)[key] = idx;
-  recordAuto(curTrack, { k: 'lp', i: key, v: idx });
+  recordAuto(curTrack, { k: 'lp', i: key, v: idx, lv: 3 });
   const L = loopSlots[tr.loop];
   if (key === 'pitch' && L.buf && lpVal(tr, 'pitch')) shiftedBuf(L, lpVal(tr, 'pitch')); // prepare now, not on the beat
   say(`${L.name} \u00b7 ${LP_OPTS[key].name} ${LP_OPTS[key].lab[idx]} \u00b7 from the next loop start`);
@@ -2261,7 +2260,7 @@ function padDesc(r, c) {
       return { label: r === 5 ? `VOL${dot}\n${Math.round(VOL[0] * 100)}` : `${Math.round(VOL[5 - r] * 100)}`, tone: 5 - r <= t.vol ? 'sel' : 'white', faded: anySoloed() ? !t.solo : t.mute };
     }
     case 2: { // CLIP/SEQ
-      if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) { // step edit previews clip slots 1–2 (loop edit: slot 1 only)
+      if (!page2 || r < 2) { // step edit and loop edit preview clip slots 1–2
         r = clipRow(r);
         // column = track (lines up with T1–T8), rows 1–6 are clip slots, then MUTE and SOLO (bottom)
         if (r === 7) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
@@ -2479,7 +2478,7 @@ function padDown(r, c) {
       break;
     }
     case 2: {
-      if (!page2 || r < (isLoopTrack(tr) ? 1 : 2)) {
+      if (!page2 || r < 2) {
         r = clipRow(r);
         if (r >= 6) {
           const t = S.tracks[c], name = labelOf(trackButtons[c]);
