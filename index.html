@@ -245,7 +245,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.7'; // shown in the status screen; bumped with every change
+const APP_VERSION = 'v1.8'; // shown in the status screen; bumped with every change
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -2156,17 +2156,17 @@ function padDown(r, c) {
         curTrack = c;
         renderTracks();
         info.onTap = () => clipTap(c, r); // (track, slot)
-        info.hold = setTimeout(() => { // hold to delete a clip
+        info.hold = setTimeout(() => { // hold a clip: open it in the step editor (CLEAR + tap deletes)
           info.held = true;
           const t = S.tracks[c];
-          if (!t.clips[r]) return;
-          commit();
-          t.clips[r] = null;
-          if (t.active === r) { t.active = -1; t.stopped = false; }
+          if (!t.clips[r]) { commit(); t.clips[r] = { notes: [] }; }
           if (t.queued === r) t.queued = null;
-          say(`Clip ${r + 1} deleted from track ${labelOf(trackButtons[c])}`);
+          t.active = r; t.stopped = false; // the editor shows the track's current clip
+          curTrack = c; t.sel = -1; page2 = true;
+          releaseAll();
+          say(`${instName(t)} ${r + 1} \u00b7 editing`);
           render();
-        }, 700);
+        }, 500);
       } else if (tr.loop >= 0 && loopSlots[tr.loop]) {
         loopEditDown(tr, r, c, info);
       } else if (r < stepLayout(tr.clips[tr.active]).kbStart) {
