@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.91'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.92'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1277,8 +1277,10 @@ function applyAuto(ti, a) {
 function scheduleAuto(ti, a, t) {
   setTimeout(() => applyAuto(ti, a), Math.max(0, (t - AC.currentTime) * 1000));
 }
+// the clip that recording / editing goes into: the track's current clip, or a new one in the first empty slot.
+// While recording, a stopped clip doesn't count (as in Ableton: REC with nothing playing = a new clip)
 function ensureClip(tr) {
-  if (tr.active >= 0 && tr.clips[tr.active]) return;
+  if (tr.active >= 0 && tr.clips[tr.active] && !(S.rec && tr.stopped)) return;
   let slot = tr.clips.slice(0, CLIP_SLOTS).findIndex(x => !x);
   if (slot < 0) slot = 0;
   tr.clips[slot] = { notes: [] };
@@ -1783,7 +1785,7 @@ function setRec(on) {
   freeBlink();
   syncFnKeys(); render(); say(on ? `Recording on track ${labelOf(trackButtons[curTrack])}` : 'Recording off');
 }
-function ensureClipCommit(tr) { if (!(tr.active >= 0 && tr.clips[tr.active])) { commit(); ensureClip(tr); } }
+function ensureClipCommit(tr) { if (!(tr.active >= 0 && tr.clips[tr.active]) || tr.stopped) { commit(); ensureClip(tr); } }
 
 /* ---------- pad layouts ---------- */
 const BLACK = { 1: 1, 2: 3, 4: 6, 5: 8, 6: 10 };  // column → semitone on black-key rows
