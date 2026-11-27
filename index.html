@@ -380,7 +380,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.81'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.82'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3187,6 +3187,7 @@ const THEMES = {
     sel: ['#ff4cb0', 56], hot: ['#ffffff', 3], fn: ['#140a24', 51], fnDown: ['#3a1a66', 50], fnOn: ['#9b4cff', 49], bright: ['#d2b0ff', 48] },
   // Mono: built from your seven colours (see TOKEN_THEME below)
   mono: null,
+  monoLP: null, // Mono with LED colours that stay apart on the hardware (filled in below)
   // the look before themes: LEDs copy the nearest colour of each button on screen
   original: { name: 'Original (LEDs copy the screen)', css: false, match: true },
 };
@@ -3232,6 +3233,11 @@ function tokenTheme(name, tokens) {
   return t;
 }
 THEMES.mono = tokenTheme('Mono (white levels)', MONO_TOKENS);
+// Mono · LP contrast: the same screen colours, but the Launchpad only has off / dim / bright greys (its mid grey
+// looks almost white), so the states get LED colours that stay apart: idle B dim white, idle dim blue,
+// active white, pressed yellow, playhead and played notes magenta, the track column faint blue.
+const MONO_LP_LEDS = { idle: 46, idleB: 1, active: 3, space: 0, pressed: 13, played: 52, playhead: 53, column: 47, warning: 5, success: 21, tint: 0 };
+THEMES.monoLP = tokenTheme('Mono \u00b7 LP contrast', Object.fromEntries(Object.entries(MONO_TOKENS).map(([k, v]) => [k, [v[0], MONO_LP_LEDS[k] ?? v[1]]])));
 // which CSS variables each role paints (inks are worked out from the colour's lightness)
 const ROLE_VARS = {
   pad: ['--pad'], keyL: ['--key-light'], kit: ['--kit'], xy: ['--xy'], step: ['--step'], stepon: ['--stepon'], stepout: ['--stepout'], playhead: ['--playhead'], warning: ['--warning'], success: ['--success'], clipempty: ['--clipempty'], clipoff: ['--clipoff'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
@@ -3304,6 +3310,8 @@ function lpColor(el) {
     if (cl.contains('pasted')) return led('success');
     if (cl.contains('colhl') && cl.contains('clipempty')) return led('emptyCur');
     if (cl.contains('down')) return root.contains('clearing') ? led('warning') : root.contains('duping') ? led('success') : led('press');
+    if (theme.tokens && theme.tokens.played && theme.tokens.played[1] && (cl.contains('nhit') || cl.contains('ohit') || cl.contains('hit')))
+      return theme.tokens.played[1]; // a theme with its own LED colour for played notes
     if (theme.noteBoost && (cl.contains('nhit') || cl.contains('ohit') || cl.contains('hit'))) { // played note: one grey step brighter than its state
       const base = lpColor(Object.assign(document.createElement('div'), { className: el.className.replace(/\b[no]?hit\b/g, '') }));
       return [1, 2, 3, 3][base] ?? base;
@@ -3522,7 +3530,7 @@ function edRender() {
       const a = Math.max(0, Math.min(100, +op.value || 0)) / 100;
       ensureCustom();
       const tk2 = prefs.customTheme.tokens;
-      tk2[tk] = [cssOf(h, a), tk === 'played' || tk === 'space' || tk === 'tint' ? 0 : ledNearest(h, a)];
+      tk2[tk] = [cssOf(h, a), tk === 'played' ? (tk2[tk] && tk2[tk][1]) || 0 : tk === 'space' || tk === 'tint' ? 0 : ledNearest(h, a)];
       THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
       $io('ioEdName').textContent = theme.name; $io('ioEdReset').disabled = false; rs.disabled = false;
     };
