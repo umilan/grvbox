@@ -391,7 +391,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v2.03'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v2.04'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2065,7 +2065,10 @@ function startLoop(tr, i, t) {
 const SLICE_NOTES = [0, 2, 4, 5, 7, 9, 11, 12], WHITE_IDX = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
 const sliceOf = n => ((Math.floor(n / 12) * 7 + WHITE_IDX[((n % 12) + 12) % 12] - 28) % 8 + 8) % 8;
 // SND page: the 8 slice pads sit in a 2×4 block on the right of the bottom two rows
-const slicePad = (r, c) => { const c0 = isMini() ? 3 : 4; return r >= 6 && c >= c0 && c < c0 + 4 ? (r - 6) * 4 + c - c0 : null; };
+// LP MINI: one row higher (rows 6\u20137), so all 8 stay visible with VIEW \u2191 on or off
+const sliceRow0 = () => isMini() ? 5 : 6;
+const isChopPad = (r, c) => r === sliceRow0() && c === 0;
+const slicePad = (r, c) => { const c0 = isMini() ? 3 : 4, r0 = sliceRow0(); return r >= r0 && r < r0 + 2 && c >= c0 && c < c0 + 4 ? (r - r0) * 4 + c - c0 : null; };
 function startSlice(tr, i, t, k) {
   const L = loopSlots[tr.loop];
   if (!L.buf) { ensureLoopBuf(tr.loop); return; }
@@ -2404,13 +2407,14 @@ function padDesc(r, c) {
           if (!L) return { label: '+ WAV', tone: 'empty' };
           return { label: `${L.name.slice(0, 10)}\n${L.bars} BAR`, tone: tr.loop === c ? 'sel' : 'white' };
         }
-        if (r < 6) return { tone: 'off' };
         if (isLoopTrack(tr)) { // a loop: CHOP switch + 8 slice pads instead of the keyboard
-          if (r === 6 && c === 0) return { label: 'CHOP\n8', tone: tr.chop ? 'sel' : 'alldim' };
+          if (r < sliceRow0()) return { tone: 'off' };
+          if (isChopPad(r, c)) return { label: 'CHOP\n8', tone: tr.chop ? 'sel' : 'alldim' };
           const k = slicePad(r, c);
           if (k === null) return { tone: 'off' };
           return { label: `SLICE\n${k + 1}`, tone: tr.chop ? 'white' : 'dim' };
         }
+        if (r < 6) return { tone: 'off' };
         // little keyboard: ALL on = one sound for every note; off = pick a note, then its sound
         if (isAllPad(r, c)) return { label: 'ALL', tone: tr.split ? 'alldim' : 'sel' }; // off = dimmed blue
         const k = miniKey(r, c);
@@ -2566,8 +2570,8 @@ function padDown(r, c) {
           if (tr.loop < 0) stopLoop(tr); else { ensureLoopBuf(c); tr.chop = true; } // picked loops come chopped into 8 slices
           const L = loopSlots[c], name = labelOf(trackButtons[curTrack]);
           say(tr.loop === c ? `${name} plays ${L.name} (${L.bars} bar${L.bars > 1 ? 's' : ''}) · starts on the next bar${playing ? '' : ' after PLAY'}` : `${name} loop off`);
-        } else if (isLoopTrack(tr) && r >= 6) { // loop: CHOP on/off, or play a slice
-          if (r === 6 && c === 0) {
+        } else if (isLoopTrack(tr) && r >= sliceRow0()) { // loop: CHOP on/off, or play a slice
+          if (isChopPad(r, c)) {
             commit(); tr.chop = !tr.chop;
             say(tr.chop ? 'CHOP · 8 slices · notes C3–C4 play slices 1–8' : 'Whole loop · any note launches it');
             break;
@@ -2904,7 +2908,7 @@ function padsForNote(n) {
       const L = stepLayout(S.tracks[curTrack].clips[S.tracks[curTrack].active]);
       if (r >= L.kbStart) m = pianoNote(r - L.kbStart, c, L.pairs, L.base);
     }
-    else if (activeMode === 1 && !page2 && r >= 6 && isLoopTrack(S.tracks[curTrack])) {
+    else if (activeMode === 1 && !page2 && isLoopTrack(S.tracks[curTrack])) {
       const k = slicePad(r, c);
       if (k !== null && S.tracks[curTrack].chop && k === sliceOf(n)) out.push(pads[r][c]);
       continue;
