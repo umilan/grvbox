@@ -269,6 +269,9 @@
   /* PLAY and REC when off: a dim version of their colour (bright green / red when on) */
   .grid .btn.btn.fn.playkey:not([aria-pressed="true"]):not(.recplay):not(.down) { background: var(--play-off, color-mix(in srgb, var(--success) 32%, #000)); color: var(--play-off-ink, #e8f5ea); background-image: none; }
   .grid .btn.btn.fn.rec:not([aria-pressed="true"]):not(.down) { background: var(--rec-off, color-mix(in srgb, var(--rec) 32%, #000)); color: var(--rec-off-ink, #f8e3e2); background-image: none; }
+  /* REC armed while stopped (REC WAITS): blinks dim \u2194 bright red until the first note */
+  .grid .btn.btn.fn.rec.recarm.recarm:not(.down) { background: var(--rec-off, color-mix(in srgb, var(--rec) 32%, #000)); color: var(--rec-off-ink, #f8e3e2); background-image: none; }
+  .blinkon .grid .btn.btn.fn.rec.recarm.recarm:not(.down) { background: var(--rec); color: var(--rec-ink); }
   .btn.pad.sel { background: var(--sel); color: var(--sel-ink); font-weight: 500; }
   .btn.pad.hot { background: var(--hot); color: var(--hot-ink); font-weight: 500; }
   .btn.pad.rec { background: var(--rec); color: var(--rec-ink); font-weight: 600; }
@@ -388,7 +391,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v2.02'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v2.03'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -781,7 +784,8 @@ const PREFS = [
   { key: 'flash', label: 'FLASH\n1–8', name: 'Activity flashes on 1–8' },
   { key: 'keyFlash', label: 'FLASH\nKEYS', name: 'Note flashes on the keys page' },
   { key: 'otherNotes', label: 'OTHER\nNOTES', name: "Other tracks' notes on the keys (KEYS page and step editor)" },
-  null, null, null, null, null,
+  { key: 'recWait', label: 'REC\nWAITS', name: 'REC while stopped waits for your first note' },
+  null, null, null, null,
   // row 2: XY pad smoothing as a 4-step slider (0 = off)
   { key: 'smoothLvl', value: 0, label: 'SMOOTH\nOFF', name: 'XY smoothing off' },
   { key: 'smoothLvl', value: 1, label: 'LOW', name: 'XY smoothing low' },
@@ -790,7 +794,7 @@ const PREFS = [
 ];
 const PREFS_KEY = 'groovebox-prefs';
 PREFS[63] = { key: 'rename', label: 'RENAME\nBTNS', name: 'Rename edge buttons by double-tap' }; // bottom-right pad
-const prefs = { flash: true, keyFlash: true, otherNotes: true, smoothLvl: 2, rename: false, clockOut: false, clockIn: false };
+const prefs = { flash: true, keyFlash: true, otherNotes: true, recWait: true, smoothLvl: 2, rename: false, clockOut: false, clockIn: false };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) {}
 if (prefs.smoothAmt !== undefined) { // older on/off + amount settings
   prefs.smoothLvl = prefs.smooth === false ? 0 : prefs.smoothAmt + 1;
@@ -1296,6 +1300,18 @@ function ensureClip(tr) {
 }
 // Live recording: quantize to the nearest 16th
 function recordOn(ti, n) {
+  if (S.rec && S.recArm && !playing) { // armed: this note starts the song, recorded on step 1
+    S.recArm = false;
+    startPlay();
+    const tr = S.tracks[ti];
+    ensureClip(tr);
+    const cl = tr.clips[tr.active];
+    cl.notes = cl.notes.filter(x => !(x.s === 0 && x.n === n));
+    const note = { s: 0, n, len: 1 }; // step 1 was already scheduled when playback started: no double note
+    cl.notes.push(note);
+    say('Recording');
+    return { note, t0: AC.currentTime };
+  }
   if (!(S.rec && playing && lastPlayed)) return null;
   const tr = S.tracks[ti];
   ensureClip(tr); // no UNDO step per note: the whole recording is one UNDO step (taken when REC goes on)
@@ -1788,7 +1804,9 @@ function setRec(on) {
   if (on && !S.rec) commit(); // one UNDO step for the whole take: taken before REC goes on
   S.rec = on;
   S.recStop = false;
-  if (on) { ensureClip(S.tracks[curTrack]); if (!playing) startPlay(); }
+  // REC WAITS (grid settings): REC while stopped arms it, and your first note starts playback + recording
+  S.recArm = on && !playing && !!prefs.recWait;
+  if (on) { ensureClip(S.tracks[curTrack]); if (!playing && !S.recArm) startPlay(); }
   else document.documentElement.classList.remove('recflash');
   freeBlink();
   syncFnKeys(); render(); say(on ? `Recording on track ${labelOf(trackButtons[curTrack])}` : 'Recording off');
@@ -3081,6 +3099,7 @@ function syncFnKeys() {
   fnKeys.PLAY.classList.remove('recplay');
   fnKeys.CLICK.setAttribute('aria-pressed', String(S.click));
   fnKeys.REC.setAttribute('aria-pressed', String(S.rec));
+  fnKeys.REC.classList.toggle('recarm', !!(S.rec && S.recArm && !playing)); // armed, waiting for the first note: blinks
   fnKeys.CLICK.classList.toggle('settings', settings);
   fnKeys.SET2.setAttribute('aria-pressed', String(appSettings));
   fnKeys.MIDI.setAttribute('aria-pressed', String(midiPage));
@@ -3499,6 +3518,7 @@ function lpColor(el) {
   }
   if (cl.contains('spare') && labelOf(el).trim().length <= 1) return 0; // E, F, G: no function
   const on = el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-checked') === 'true';
+  if (cl.contains('recarm')) return root.contains('blinkon') ? led('rec') : theme.recOff ? led('recOff') : ledDimHue(led('rec')); // armed: blinks
   if (cl.contains('rec') && on) return led('rec');
   if (cl.contains('warn') && on) return led('warning');
   if (cl.contains('recplay')) return root.contains('recflash') ? led('rec') : led('recDim');
