@@ -380,7 +380,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.82'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.83'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3233,11 +3233,15 @@ function tokenTheme(name, tokens) {
   return t;
 }
 THEMES.mono = tokenTheme('Mono (white levels)', MONO_TOKENS);
-// Mono · LP contrast: the same screen colours, but the Launchpad only has off / dim / bright greys (its mid grey
+// Mono · LP contrast: the Launchpad only has off / dim / bright greys (its mid grey
 // looks almost white), so the states get LED colours that stay apart: idle B dim white, idle dim blue,
 // active white, pressed yellow, playhead and played notes magenta, the track column faint blue.
-const MONO_LP_LEDS = { idle: 46, idleB: 1, active: 3, space: 0, pressed: 13, played: 52, playhead: 53, column: 47, warning: 5, success: 21, tint: 0 };
-THEMES.monoLP = tokenTheme('Mono \u00b7 LP contrast', Object.fromEntries(Object.entries(MONO_TOKENS).map(([k, v]) => [k, [v[0], MONO_LP_LEDS[k] ?? v[1]]])));
+// The screen shows the same colours as the LEDs (lifted a little where the LED looks brighter than its RGB value).
+THEMES.monoLP = tokenTheme('Mono \u00b7 LP contrast', {
+  idle: ['#2b3a8f', 46], idleB: ['#4a4a4a', 1], active: ['#ececec', 3], space: ['#1e1e1e', 0], pressed: ['#ffe600', 13],
+  played: ['rgba(255, 76, 255, 0.4)', 52], playhead: ['rgba(255, 0, 255, 0.8)', 53], column: ['rgba(80, 110, 255, 0.18)', 47],
+  warning: ['#e8221b', 5], success: ['#2fbf4f', 21], tint: ['rgba(255, 0, 255, 0.5)', 0],
+});
 // which CSS variables each role paints (inks are worked out from the colour's lightness)
 const ROLE_VARS = {
   pad: ['--pad'], keyL: ['--key-light'], kit: ['--kit'], xy: ['--xy'], step: ['--step'], stepon: ['--stepon'], stepout: ['--stepout'], playhead: ['--playhead'], warning: ['--warning'], success: ['--success'], clipempty: ['--clipempty'], clipoff: ['--clipoff'], keyD: ['--key-dark'], empty: ['--empty'], emptyCur: ['--empty-cur'], dim: ['--dim'],
