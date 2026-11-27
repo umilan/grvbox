@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.90'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.91'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2140,6 +2140,12 @@ function quickSave(asNew) {
   if (slot < 0) return say('All 128 song slots are full · delete one on the SONGS page (CLEAR + tap)');
   saveProject(slot, !!projects[slot]);
 }
+// a new song: the start song's instruments and settings, with every clip removed
+function blankSong() {
+  const p = JSON.parse(DEMOS[1].data);
+  p.tracks.forEach(t => { t.clips = Array(8).fill(null); t.active = -1; t.stopped = false; });
+  return p;
+}
 function rememberSong() { prefs.lastSong = currentProj; savePrefs(); }
 function loadProject(slot) {
   try {
@@ -2175,7 +2181,7 @@ let projTarget = -1; // an empty slot you tapped: SAVE saves there
 function projDesc(r, c) {
   const slot = projSlotAt(r, c);
   if (slot < 0 || slot >= PROJ_SLOTS) return { tone: 'off' };
-  if (slot === projTarget && !projects[slot]) return { label: `${slot + 1}`, tone: 'sel' }; // picked as the place to save
+  if ((slot === projTarget || slot === currentProj) && !projects[slot] && !DEMOS[slot]) return { label: `${slot + 1}\nNEW`, tone: 'sel' }; // the new (unsaved) song
   if (!projects[slot] && DEMOS[slot]) return { label: `${slot + 1}\n${DEMOS[slot].name}`, tone: slot === currentProj ? 'sel' : 'light' }; // built-in
   if (!projects[slot]) return { label: `${slot + 1}`, tone: 'dim' };       // empty slot
   return { label: `P${slot + 1}`, tone: slot === currentProj ? 'sel' : 'light' }; // the current song uses the active colour
@@ -2188,9 +2194,13 @@ function projDown(r, c) {
   if (mods.clear) { fnKeys.CLEAR._markUsed?.(); if (projects[slot]) deleteProject(slot); else say(DEMOS[slot] ? 'Built-in song \u00b7 save over it to replace it' : 'That slot is empty'); return; }
   if (projPage === 'save') { saveProject(slot, !!projects[slot]); projPage = 'load'; render(); return; }
   if (saveArmed) { saveArmed = false; saveProject(slot, !!projects[slot]); confirmSave(); return; } // armed SAVE + tap a slot = save there
-  if (!projects[slot] && !DEMOS[slot]) { // empty slot: pick it as the place to save (tap again = unpick)
-    projTarget = projTarget === slot ? -1 : slot;
-    say(projTarget >= 0 ? `Slot ${slot + 1} picked \u00b7 SAVE saves your song there` : 'Slot unpicked');
+  if (!projects[slot] && !DEMOS[slot]) { // empty slot: start a new, empty song here (SAVE saves it into this slot)
+    if (slot === currentProj) return say(`Slot ${slot + 1} \u00b7 new song (not saved yet)`);
+    commit(); // UNDO brings back the song you had
+    applyProject(blankSong());
+    currentProj = slot; projTarget = -1; rememberSong();
+    say(`Slot ${slot + 1} \u00b7 new empty song \u00b7 SAVE to keep it`);
+    render();
     return;
   }
   projTarget = -1;
