@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.93'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.94'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1168,7 +1168,7 @@ function playStep(st, t) {
       if (n.skip === st) { delete n.skip; return; }
       voice(i, n.n, ts).stop(ts + n.len * stepDur() - .005);
     });
-    (cl.auto || []).forEach(a => { if (a.s === ps && !SOUND_AUTO.has(a.k)) scheduleAuto(i, a, ts); });
+    (cl.auto || []).forEach(a => { if (a.s === ps && !SOUND_AUTO.has(a.k)) scheduleAuto(i, a, ts + (a.f || 0) * stepDur()); }); // at its exact moment
   });
   if (s16 % 4 === 0 && S.click) playClick(t, s16 === 0);
   if (prefs.clockOut) for (let k = 0; k < 6; k++) sendAll([0xf8], t + k * stepDur() / 6); // 24 ticks per beat
@@ -1225,11 +1225,13 @@ function recordAuto(ti, ev) {
   if (!(S.rec && playing && lastPlayed) || ti !== curTrack) return;
   const tr = S.tracks[ti];
   ensureClip(tr);
-  const q = Math.round(lastPlayed.s + (AC.currentTime - lastPlayed.t) / stepDur());
+  // the exact moment, not just the 16th: a swipe across a fader is kept as a movement (f = position inside the step)
+  const pos = lastPlayed.s + (AC.currentTime - lastPlayed.t) / stepDur();
   const cl = tr.clips[tr.active];
-  const s = wrap(q, clipLen(cl));
-  cl.auto = (cl.auto || []).filter(a => !(a.s === s && a.k === ev.k && a.fx === ev.fx && a.i === ev.i && a.pc === ev.pc));
-  cl.auto.push({ s, ...ev });
+  const s = wrap(Math.floor(pos), clipLen(cl)), f = Math.round((pos - Math.floor(pos)) * 100) / 100;
+  const same = a => a.k === ev.k && a.fx === ev.fx && a.i === ev.i && a.pc === ev.pc;
+  cl.auto = (cl.auto || []).filter(a => !(a.s === s && same(a) && Math.abs((a.f || 0) - f) < .06));
+  cl.auto.push(f ? { s, f, ...ev } : { s, ...ev });
 }
 // Sound automation kinds: 'pre' = preset picked, 'sp' = sound slider, 'kit' = drum kit loaded.
 // pc ≥ 0 means one note's own sound (sound-per-note mode), -1 the whole track's sound.
