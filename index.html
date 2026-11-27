@@ -381,7 +381,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.84'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.85'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -663,8 +663,15 @@ function onMidi(id, data) {
   if (data[0] >= 0xf8) { if (prefs.clockIn) onClock(data[0]); return; }
   const cmd = data[0] & 0xf0, n = data[1], vel = data[2];
   if (id === 'lp') { // the Launchpad is the grid: its buttons press the buttons on screen
-    if (vel > 0) { lpDiag.last = `${cmd === 0xb0 ? 'CC' : 'note'} ${n}`; ioLpDiag(); }
+    if (vel > 0) lpDiag.last = `${cmd === 0xb0 ? 'CC' : 'note'} ${n}`;
+    const before = `${MODES[activeMode]}${page2 ? ' p2' : ''}`;
     if (cmd === 0x90 || cmd === 0x80 || cmd === 0xb0) lpPress(n, cmd !== 0x80 && vel > 0);
+    // press log for the diagnostics: raw message, what it hit on screen, and the page before \u2192 after
+    const el = lpByHw.get(n) || (n <= 8 && lpByHw.get(100 + n)) || (n >= 101 && lpByHw.get(n - 100));
+    const what = el ? (labelOf(el) || '').replace(/\n/g, ' ').trim() || `pad ${el.dataset.r}/${el.dataset.c}` : 'nothing';
+    lpDiag.log.unshift(`${[...data].map(x => x.toString(16).padStart(2, '0')).join(' ')} \u00b7 ${what} \u00b7 ${cmd !== 0x80 && vel > 0 ? 'down' : 'up'} \u00b7 ${before} \u2192 ${MODES[activeMode]}${page2 ? ' p2' : ''}`);
+    lpDiag.log.length = Math.min(lpDiag.log.length, 8);
+    ioLpDiag();
     return;
   }
   if (cmd === 0x90 && vel > 0) midiNoteOn(id, n);
@@ -3113,7 +3120,7 @@ function lpConnect(access) {
   ioRefresh();
 }
 // diagnostics shown in Audio & MIDI settings
-const lpDiag = { prog: '', last: '', err: '', sent: 0 };
+const lpDiag = { prog: '', last: '', err: '', sent: 0, log: [] };
 // switch the Launchpad to Programmer mode (needs SysEx permission)
 function lpProgrammer() {
   if (!lpOut) return;
@@ -3438,6 +3445,7 @@ function ioLpDiag() {
     `Programmer mode: ${lpDiag.prog === 'sent' ? 'switched on by the app' : sysex ? 'not sent' : 'set it on the Launchpad (this browser didn\u2019t allow SysEx)'}`,
     `LED messages sent: ${lpDiag.sent}${lpDiag.err ? ' \u00b7 error: ' + lpDiag.err : ''}`,
     `Last Launchpad press: ${lpDiag.last || 'none yet'}`,
+    ...(lpDiag.log.length ? ['Recent messages (newest first):', ...lpDiag.log] : []),
   ].join('\n');
   $io('ioLpTest').disabled = !lpOut;
   $io('ioLpProg').disabled = !lpOut || !sysex;
