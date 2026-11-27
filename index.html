@@ -282,9 +282,9 @@
   .btn.fn.ok[aria-pressed="true"] { background: var(--success); color: var(--success-ink); }
   .btn.fn.warn[aria-pressed="true"] { background: var(--warning, var(--rec)); color: var(--warning-ink, var(--rec-ink)); }
   .btn.fn.bright[aria-pressed="true"] { background: var(--mode-bright); color: var(--mode-bright-ink); }
-  .btn.fn.recplay { background: var(--rec-dim); color: var(--rec-dim-ink); }
+  .btn.fn.recplay.recplay { background: var(--rec-dim); color: var(--rec-dim-ink); } /* recording wins over the green PLAY */
   .btn.fn.settings { box-shadow: inset 0 0 0 3px var(--mode-bright); }
-  .recflash .btn.fn.recplay { background: var(--rec); color: var(--rec-ink); }
+  .recflash .btn.fn.recplay.recplay { background: var(--rec); color: var(--rec-ink); }
   .btn.track { background: var(--track); color: var(--track-ink); }
   .btn.track[aria-checked="true"] { background: var(--track-on); color: var(--track-on-ink); font-weight: 500; }
   /* note pulse: a faint light wash that fades out */
@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.95'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.96'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1675,7 +1675,7 @@ for (let r = 0; r < 10; r++) {
       b.className = 'btn fn';
       b.textContent = label;
       if (label === 'TAP TEMPO') { fnKeys.TAP = b; const s = document.createElement('span'); s.className = 'small'; b.append(s); tapTempoKey(b); }
-      else if (label === 'PLAY/STOP') { fnKeys.PLAY = b; b.textContent = 'PLAY/\nSTOP'; b.setAttribute('aria-pressed', 'false'); playKey(b); }
+      else if (label === 'PLAY/STOP') { fnKeys.PLAY = b; b.classList.add('ok'); /* playing = success colour (green) */ b.textContent = 'PLAY/\nSTOP'; b.setAttribute('aria-pressed', 'false'); playKey(b); }
       else if (label === 'CLICK') { // tap = click on/off; hold = click settings
         fnKeys.CLICK = b;
         b.setAttribute('aria-pressed', 'false');
@@ -3444,8 +3444,8 @@ function lpColor(el) {
   const on = el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-checked') === 'true';
   if (cl.contains('rec') && on) return led('rec');
   if (cl.contains('warn') && on) return led('warning');
-  if (cl.contains('ok') && on) return led('success');
   if (cl.contains('recplay')) return root.contains('recflash') ? led('rec') : led('recDim');
+  if (cl.contains('ok') && on) return led('success');
   // side-buttons tint: the LED shows the button's colour with the tint mixed in (nearest palette colour)
   const tint = roundTint();
   if (tint) {
