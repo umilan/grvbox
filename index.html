@@ -388,7 +388,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v2.00'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v2.01'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -909,7 +909,7 @@ function voice(ti, note, t) {
 }
 function voiceSynth(ti, note, t) {
   const lt = S.tracks[ti];
-  if (lt.loop >= 0 && loopSlots[lt.loop]) { startLoop(lt, ti, t); return SILENT; } // any note launches the loop from its start
+  if (lt.loop >= 0 && loopSlots[lt.loop]) { if (lt.chop) startSlice(lt, ti, t, sliceOf(note)); else startLoop(lt, ti, t); return SILENT; } // any note launches the loop from its start
   flashTrack(ti, t);
   flashNote(ti, note, t);
   const tr = S.tracks[ti], snd = soundFor(tr, note), P = PRESETS[snd.preset], L = snd.L, c = AC;
@@ -2043,6 +2043,26 @@ function startLoop(tr, i, t) {
   tr._loopSrc = src;
   flashTrack(i, t);
 }
+// CHOP: the loop cut into 8 equal slices. White keys from C3 play slices 1–8 (C4 = 8, D4 wraps to 1)
+const SLICE_NOTES = [0, 2, 4, 5, 7, 9, 11, 12], WHITE_IDX = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
+const sliceOf = n => ((Math.floor(n / 12) * 7 + WHITE_IDX[((n % 12) + 12) % 12] - 28) % 8 + 8) % 8;
+// SND page: the 8 slice pads sit in a 2×4 block on the right of the bottom two rows
+const slicePad = (r, c) => { const c0 = isMini() ? 3 : 4; return r >= 6 && c >= c0 && c < c0 + 4 ? (r - 6) * 4 + c - c0 : null; };
+function startSlice(tr, i, t, k) {
+  const L = loopSlots[tr.loop];
+  if (!L.buf) { ensureLoopBuf(tr.loop); return; }
+  const semis = lpVal(tr, 'pitch'), ratio = Math.pow(2, semis / 12), buf = semis ? shiftedBuf(L, semis) : L.buf;
+  const region = L.buf.duration / 8 * ratio, steps = L.bars * 2 / lpVal(tr, 'speed'); // a slice = 1/8 of the loop's steps
+  if (tr._loopSrc) { try { tr._loopSrc.stop(t); } catch (e) {} } // one slice at a time, like a chopped break
+  const src = AC.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = region / (steps * stepDur()); // stays in time with the tempo
+  src.connect(bus[i].input);
+  src.start(t, region * k, region);
+  tr._loopSrc = src;
+  flashTrack(i, t);
+  flashNote(i, 48 + SLICE_NOTES[k], t);
+}
 // Granular time-stretch (overlap-add of windowed grains): same pitch, length \u00d7 factor. Cached per pitch.
 function stretchBuf(buf, factor) {
   const G = 2048, hop = G / 4, n = buf.length, outLen = Math.floor(n * factor);
@@ -2367,6 +2387,12 @@ function padDesc(r, c) {
           return { label: `${L.name.slice(0, 10)}\n${L.bars} BAR`, tone: tr.loop === c ? 'sel' : 'white' };
         }
         if (r < 6) return { tone: 'off' };
+        if (isLoopTrack(tr)) { // a loop: CHOP switch + 8 slice pads instead of the keyboard
+          if (r === 6 && c === 0) return { label: 'CHOP\n8', tone: tr.chop ? 'sel' : 'alldim' };
+          const k = slicePad(r, c);
+          if (k === null) return { tone: 'off' };
+          return { label: `SLICE\n${k + 1}`, tone: tr.chop ? 'white' : 'dim' };
+        }
         // little keyboard: ALL on = one sound for every note; off = pick a note, then its sound
         if (isAllPad(r, c)) return { label: 'ALL', tone: tr.split ? 'alldim' : 'sel' }; // off = dimmed blue
         const k = miniKey(r, c);
@@ -2519,9 +2545,20 @@ function padDown(r, c) {
         } else if (r === 4) { // audio loops: empty = load a file · loaded = play it on this track (tap again = off)
           if (!loopSlots[c]) { loopTarget = c; loopFile.click(); break; }
           tr.loop = tr.loop === c ? -1 : c;
-          if (tr.loop < 0) stopLoop(tr); else ensureLoopBuf(c);
+          if (tr.loop < 0) stopLoop(tr); else { ensureLoopBuf(c); tr.chop = true; } // picked loops come chopped into 8 slices
           const L = loopSlots[c], name = labelOf(trackButtons[curTrack]);
           say(tr.loop === c ? `${name} plays ${L.name} (${L.bars} bar${L.bars > 1 ? 's' : ''}) · starts on the next bar${playing ? '' : ' after PLAY'}` : `${name} loop off`);
+        } else if (isLoopTrack(tr) && r >= 6) { // loop: CHOP on/off, or play a slice
+          if (r === 6 && c === 0) {
+            commit(); tr.chop = !tr.chop;
+            say(tr.chop ? 'CHOP · 8 slices · notes C3–C4 play slices 1–8' : 'Whole loop · any note launches it');
+            break;
+          }
+          const k = slicePad(r, c);
+          if (k === null) break;
+          if (!tr.chop) { commit(); tr.chop = true; }
+          const n = 48 + SLICE_NOTES[k];
+          info.v = voice(curTrack, n, AC.currentTime); info.rec = recordOn(curTrack, n); tr.last = n;
         } else if (isAllPad(r, c)) { // ALL sits where the high C was
           commit();
           tr.split = !tr.split; tr.kitSel = 0;
@@ -2848,6 +2885,11 @@ function padsForNote(n) {
     else if (activeMode === 2 && page2 && !(S.tracks[curTrack].loop >= 0 && loopSlots[S.tracks[curTrack].loop])) {
       const L = stepLayout(S.tracks[curTrack].clips[S.tracks[curTrack].active]);
       if (r >= L.kbStart) m = pianoNote(r - L.kbStart, c, L.pairs, L.base);
+    }
+    else if (activeMode === 1 && !page2 && r >= 6 && isLoopTrack(S.tracks[curTrack])) {
+      const k = slicePad(r, c);
+      if (k !== null && S.tracks[curTrack].chop && k === sliceOf(n)) out.push(pads[r][c]);
+      continue;
     }
     else if (activeMode === 1 && !page2 && r >= 6 && !isAllPad(r, c)) {
       const k = miniKey(r, c);
