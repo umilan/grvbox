@@ -168,6 +168,7 @@
   .io button.link { background: none; border: 0; padding: 0; color: var(--screen-dim); text-decoration: underline; }
   .io button.x { background: none; border: 0; font-size: 22px; line-height: 1; padding: 2px 6px; }
   .io .note { color: var(--screen-dim); font-size: 12px; margin: 4px 0; font-weight: 400; }
+  .io .bright { display: flex; align-items: center; gap: 8px; } .io .bright input { width: 140px; } .io .bright span { width: 3.2em; text-align: right; color: var(--screen-dim); font-variant-numeric: tabular-nums; }
   .io .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
   .io .themepick { display: flex; gap: 6px; align-items: center; min-width: 0; }
   .io .themepick select { max-width: 100%; min-width: 0; }
@@ -350,6 +351,7 @@
       <div id="ioIns" class="list"></div>
       <h4>Launchpad LEDs</h4>
       <label class="row">Send to <select id="ioLpOut"></select></label>
+      <label class="row">Brightness <span class="bright"><input type="range" id="ioLpBright" min="5" max="100" step="5"><span id="ioLpBrightV"></span></span></label>
       <p class="note" id="ioLpDiag"></p>
       <div class="btns"><button type="button" id="ioLpTest">Test LEDs</button><button type="button" id="ioLpProg">Switch to Programmer mode</button></div>
       <details id="ioOutsBox">
@@ -381,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.86'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.87'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3137,7 +3139,31 @@ function lpProgrammer() {
     else { lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x21, 0x01, 0xf7]); lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, 0x10, 0x2c, 0x03, 0xf7]); } // Pro 2015
     lpDiag.prog = 'sent';
   } catch (e) { lpDiag.prog = 'failed'; lpDiag.err = e.message; }
+  lpBrightness();
   lpLeds.clear(); // repaint after the mode change
+}
+/* ---------- Launchpad brightness (Settings slider, 100 % = the device's own maximum) ----------
+   MK3 family (Pro / Mini / X): the device's global LED brightness, set by SysEx (0–127).
+   Without SysEx, or on the Pro 2015: colours are stepped down instead (full \u2192 dim \u2192 faint, white \u2192 grey). */
+const lpBrightPct = () => Math.max(5, Math.min(100, prefs.lpBright ?? 100));
+function lpHwBrightness() { // SysEx device id when the hardware can set its own brightness, else null
+  if (!lpOut || !midiAccess || !midiAccess.sysexEnabled) return null;
+  const n = lpOut.name;
+  return /mini/i.test(n) ? 0x0d : /lpx|launchpad x/i.test(n) ? 0x0c : lpMk3 ? 0x0e : null;
+}
+function lpBrightness() {
+  const dev = lpHwBrightness();
+  if (dev !== null) { try { lpOut.send([0xf0, 0x00, 0x20, 0x29, 0x02, dev, 0x08, Math.round(lpBrightPct() * 127 / 100), 0xf7]); } catch (e) {} }
+  lpLeds.clear();
+}
+// software dimming for devices without a brightness setting: one or two steps darker in the same hue
+function lpDimmed(i) {
+  if (lpHwBrightness() !== null || i <= 0) return i;
+  const pct = lpBrightPct(), steps = pct > 66 ? 0 : pct > 33 ? 1 : 2;
+  if (!steps) return i;
+  if (i <= 3) return Math.max(1, i - steps);                 // greys: white \u2192 mid \u2192 dim
+  if (i >= 4 && i <= 59) { const base = i - ((i - 4) % 4), lvl = (i - 4) % 4; return base + Math.min(3, Math.max(lvl, 1) + steps); }
+  return i;
 }
 // LED test: every mapped button cycles through red, green, blue, white, then the screen colours come back
 let lpTesting = false;
@@ -3380,7 +3406,7 @@ function lpPaint() {
       const col = lpColor(el);
       if (lpLeds.get(id) === col) return;
       lpLeds.set(id, col);
-      lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, col]);
+      lpOut.send([lpIsPad(id) ? 0x90 : 0xb0, id, lpDimmed(col)]);
       lpDiag.sent++;
     });
   } catch (e) { if (lpDiag.err !== e.message) { lpDiag.err = e.message; ioLpDiag(); } lpLeds.clear(); } // keep trying
@@ -3616,6 +3642,9 @@ $io('ioNames').addEventListener('click', async () => {
 });
 $io('ioMidiOn').addEventListener('click', () => { startMidi(); ioRefresh(); });
 $io('ioLpTest').addEventListener('click', lpTest);
+const brightUI = () => { $io('ioLpBright').value = lpBrightPct(); $io('ioLpBrightV').textContent = `${lpBrightPct()} %`; };
+brightUI();
+$io('ioLpBright').addEventListener('input', e => { prefs.lpBright = +e.target.value; savePrefs(); brightUI(); lpBrightness(); });
 $io('ioLpProg').addEventListener('click', () => { lpProgrammer(); ioRefresh(); });
 $io('ioLpOut').addEventListener('change', e => { prefs.lpOut = e.target.value; savePrefs(); if (midiAccess) lpConnect(midiAccess); });
 $io('ioClockOut').addEventListener('change', e => { prefs.clockOut = e.target.checked; savePrefs(); if (midiPage) render(); });
