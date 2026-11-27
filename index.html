@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.92'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.93'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -859,7 +859,7 @@ function clipPadFor(ti) {
   let r = slot;
   if (isMini() && !page2 && !miniView.up) r = slot + 1;                 // LP MINI shifts the slots down a row
   if (page2 && r >= 2) return null; // step edit shows only the preview rows
-  if (r > 5 || (isMini() && r < 1)) return null;
+  if (r > 3 || (isMini() && r < 1)) return null;
   return pads[r] && pads[r][ti];
 }
 // KEYS page: pulse the pads of each note that sounds — the selected track in pink, other tracks in blue
@@ -870,7 +870,7 @@ function flashNote(ti, note, t) {
   if (anySolo ? !tr.solo : tr.mute) return; // solo wins over mute
   setTimeout(() => {
     // KEYS page and the step editor's keyboard show the notes as they sound
-    if (!(activeMode === 3 || (activeMode === 2 && page2)) || settings || appSettings || projPage || midiPage) return;
+    if (!(activeMode === 3 || activeMode === 2) || settings || appSettings || projPage || midiPage) return;
     const cls = ti === curTrack ? 'nhit' : 'ohit';
     padsForNote(note).forEach(p => {
       p.classList.add(cls);
@@ -1217,7 +1217,7 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
-const CLIP_SLOTS = 6; // CLIP/SEQ rows 1–6 are clips, rows 7–8 are MUTE / SOLO
+const CLIP_SLOTS = 4; // CLIPS page: rows 1–4 clip slots, 5 STOP, 6 scenes, 7–8 a keyboard
 /* ---------- FX automation in clips ----------
    While recording, effect on/off and effect slider changes on the recording track are stored in its clip
    as { s: step, k: 'on' | 'p', fx, i: slider, v: value } and replayed at that step on every loop. */
@@ -1747,7 +1747,7 @@ function say(t) {
 // LP MINI hides the top pad row, so on the CLIPS page the clip slots move up one row:
 // visible rows show slots 1–5, then MUTE and SOLO
 const isMini = () => prefs.layout === 'mini';
-const clipRow = r => isMini() && !page2 && !miniView.up ? (r <= 5 ? r - 1 : r) : r;
+const clipRow = r => isMini() && !page2 && !miniView.up ? (r <= 3 ? r - 1 : r) : r;
 // LP MINI has 7 tracks: track 8 is hidden and silent
 const trackOff = i => isMini() && i === 7;
 // SND little keyboard's ALL button: where the high C was; LP MINI hides that column, so it sits in the gap above the low C
@@ -2303,9 +2303,16 @@ function stopDesc(c) {
   if (t.queued === 'stop') return { label: 'STOP', tone: 'queued' };
   return { label: 'STOP', tone: trackPlaying(t) ? 'light' : 'dim' }; // lit while the track has a clip playing
 }
+// the CLIPS page keyboard (bottom two rows): one octave from the KEYS octave, black keys above white
+const clipsKeyNote = (r, c) => pianoNote(r - 6, c, 1, S.oct + 1);
+function clipsKeyDesc(r, c) {
+  const n = clipsKeyNote(r, c);
+  if (n === null) return { tone: 'gap' };
+  return { label: noteName(n), tone: r === 6 ? 'dark' : 'keywhite' };
+}
 function sceneDesc(c) {
   if (c === 7) return { label: 'STOP\nALL', tone: S.tracks.some(trackPlaying) ? 'light' : 'dim' };
-  if (c === 6) return { tone: 'off' };
+  if (c >= CLIP_SLOTS) return { tone: 'off' };
   const used = S.tracks.some(t => t.clips[c]);
   if (S.tracks.some(t => t.queued === c)) return { label: `SCENE ${c + 1}`, tone: 'queued' };
   const on = used && S.tracks.every(t => t.clips[c] ? t.active === c && trackPlaying(t) : !trackPlaying(t));
@@ -2415,9 +2422,10 @@ function padDesc(r, c) {
     case 2: { // CLIP/SEQ
       if (!page2 || r < 2) { // step edit and loop edit preview clip slots 1–2
         r = clipRow(r);
-        // column = track (lines up with 1–8), rows 1–6 are clip slots, then STOP per track and the scene row (bottom)
-        if (r === 6) return stopDesc(c);
-        if (r === 7) return sceneDesc(c);
+        // column = track (lines up with 1–8): rows 1–4 clip slots, 5 STOP per track, 6 scenes, 7–8 a keyboard
+        if (!page2 && r >= 6) return clipsKeyDesc(r, c);
+        if (!page2 && r === 4) return stopDesc(c);
+        if (!page2 && r === 5) return sceneDesc(c);
         const d = clipSlotDesc(r, c);
         return c === curTrack && !page2 ? { ...d, hl: true } : d; // the selected track's column: highlight on top
       }
@@ -2629,8 +2637,12 @@ function padDown(r, c) {
     case 2: {
       if (!page2 || r < 2) {
         r = clipRow(r);
-        if (r === 6) { stopTrack(c); break; }               // STOP: this track's clip stops (at the next bar while playing)
-        if (r === 7) { c === 7 ? stopAll() : launchScene(c); break; } // SCENE 1–6 / STOP ALL
+        if (r >= 6) { // keyboard: plays (and records into) the selected track
+          const n = clipsKeyNote(r, c); if (n === null) break;
+          info.v = voice(curTrack, n, AC.currentTime); info.rec = recordOn(curTrack, n); tr.last = n; break;
+        }
+        if (r === 4) { stopTrack(c); break; }                // STOP: this track's clip stops (at the next bar while playing)
+        if (r === 5) { if (c === 7) stopAll(); else if (c < CLIP_SLOTS) launchScene(c); break; } // SCENE 1–4 / STOP ALL
         const tt = S.tracks[c];
         if (mods.clear) { // CLEAR + tap a clip: delete it
           if (!tt.clips[r]) { say('That slot is already empty'); break; }
@@ -2761,7 +2773,7 @@ function onState(r, c) {
   const t = S.tracks[c];
   if (activeMode === 0 && !page2 && r > 0) return !!t.fxOn[fxAt(r)];
   if (activeMode === 4 && r >= 6) return r === 7 ? t.solo : t.mute;
-  if (activeMode === 2 && !page2 && r >= 6) return null; // STOP / scene pads: no painting
+  if (activeMode === 2 && !page2 && r >= 4) return null; // STOP / scenes / keyboard: no painting
   if (activeMode === 2 && page2 && r >= 2) {
     const tr = S.tracks[curTrack], cl = tr.clips[tr.active], L = stepLayout(cl);
     if (tr.loop >= 0 && loopSlots[tr.loop]) return null;
@@ -2824,6 +2836,7 @@ function padsForNote(n) {
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     let m = null;
     if (activeMode === 3) m = keysNote(r, c);
+    else if (activeMode === 2 && !page2 && r >= 6) m = clipsKeyNote(r, c);
     else if (activeMode === 2 && page2 && !(S.tracks[curTrack].loop >= 0 && loopSlots[S.tracks[curTrack].loop])) {
       const L = stepLayout(S.tracks[curTrack].clips[S.tracks[curTrack].active]);
       if (r >= L.kbStart) m = pianoNote(r - L.kbStart, c, L.pairs, L.base);
