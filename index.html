@@ -266,6 +266,9 @@
   .grid .btn.btn.fn, .grid .btn.btn.nav, .grid .btn.btn.mode, .grid .btn.btn.track { background-image: linear-gradient(var(--roundtint, transparent), var(--roundtint, transparent)); }
   /* status colours stay pure: green PLAY / SAVE / DUP, red REC / CLEAR, the recording pulse */
   .grid .btn.btn.fn.ok[aria-pressed="true"], .grid .btn.btn.fn.warn[aria-pressed="true"], .grid .btn.btn.fn.rec[aria-pressed="true"], .grid .btn.btn.fn.recplay { background-image: none; }
+  /* PLAY and REC when off: a dim version of their colour (bright green / red when on) */
+  .grid .btn.btn.fn.playkey:not([aria-pressed="true"]):not(.recplay):not(.down) { background: color-mix(in srgb, var(--success) 32%, #000); color: #e8f5ea; background-image: none; }
+  .grid .btn.btn.fn.rec:not([aria-pressed="true"]):not(.down) { background: color-mix(in srgb, var(--rec) 32%, #000); color: #f8e3e2; background-image: none; }
   .btn.pad.sel { background: var(--sel); color: var(--sel-ink); font-weight: 500; }
   .btn.pad.hot { background: var(--hot); color: var(--hot-ink); font-weight: 500; }
   .btn.pad.rec { background: var(--rec); color: var(--rec-ink); font-weight: 600; }
@@ -385,7 +388,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.97'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.98'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1677,7 +1680,7 @@ for (let r = 0; r < 10; r++) {
       b.className = 'btn fn';
       b.textContent = label;
       if (label === 'TAP TEMPO') { fnKeys.TAP = b; const s = document.createElement('span'); s.className = 'small'; b.append(s); tapTempoKey(b); }
-      else if (label === 'PLAY/STOP') { fnKeys.PLAY = b; b.classList.add('ok'); /* playing = success colour (green) */ b.textContent = 'PLAY/\nSTOP'; b.setAttribute('aria-pressed', 'false'); playKey(b); }
+      else if (label === 'PLAY/STOP') { fnKeys.PLAY = b; b.classList.add('ok', 'playkey'); /* playing = success colour (green) */ b.textContent = 'PLAY/\nSTOP'; b.setAttribute('aria-pressed', 'false'); playKey(b); }
       else if (label === 'CLICK') { // tap = click on/off; hold = click settings
         fnKeys.CLICK = b;
         b.setAttribute('aria-pressed', 'false');
@@ -3448,20 +3451,29 @@ function lpColor(el) {
   if (cl.contains('warn') && on) return led('warning');
   if (cl.contains('recplay')) return root.contains('recflash') ? led('rec') : led('recDim');
   if (cl.contains('ok') && on) return led('success');
-  // side-buttons tint: the LED shows the button's colour with the tint mixed in (nearest palette colour)
+  if (cl.contains('playkey')) return ledDimHue(led('success')); // PLAY stopped: dim green
+  if (cl.contains('rec')) return ledDimHue(led('rec'));          // REC off: dim red
+  // the button's state (by meaning, not by its pixels, so short flashes like the TAP beat always show)
+  const role = cl.contains('down') ? 'press' : on ? (cl.contains('bright') ? 'bright' : 'fnOn')
+    : cl.contains('beat') || cl.contains('hit') ? 'fnDown' : cl.contains('settings') ? 'bright' : 'fn';
+  // side-buttons tint: the LED shows the state colour with the tint mixed in (nearest palette colour)
   const tint = roundTint();
   if (tint) {
-    const [r, g, b] = rgbaOf(getComputedStyle(el).backgroundColor), a = tint[3];
+    const css = theme[role] && theme[role][0];
+    const [r, g, b] = css ? cssRGBA(css) : rgbaOf(getComputedStyle(el).backgroundColor), a = tint[3];
     const mix = [r + (tint[0] - r) * a, g + (tint[1] - g) * a, b + (tint[2] - b) * a];
     let best = 0, bd = Infinity;
     LP_PAL.forEach(([i, pr, pg, pb]) => { const d = (mix[0] - pr) ** 2 + (mix[1] - pg) ** 2 + (mix[2] - pb) ** 2; if (d < bd) { bd = d; best = i; } });
     return best;
   }
-  if (cl.contains('down')) return led('press');
-  if (on) return cl.contains('bright') ? led('bright') : led('fnOn');
-  if (cl.contains('beat') || cl.contains('hit')) return led('fnDown');
-  if (cl.contains('settings')) return led('bright');
-  return led('fn');
+  return led(role);
+}
+// a palette colour's dim step in the same hue (greys: dim grey)
+const ledDimHue = i => i <= 3 ? 1 : i >= 4 && i <= 59 ? i - ((i - 4) % 4) + 2 : i;
+// '#rrggbb' or 'rgba(...)' -> [r, g, b, a]
+function cssRGBA(v) {
+  if (v[0] === '#') { const n = parseInt(v.slice(1, 7), 16); return [n >> 16, (n >> 8) & 255, n & 255, 1]; }
+  return rgbaOf(v);
 }
 // the side-buttons tint as [r, g, b, a] (0–255, alpha 0–1), or null when there is none
 function roundTint() {
