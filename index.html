@@ -260,6 +260,8 @@
   .btn.pad.emptycur { background: var(--empty-cur); }
   /* highlighted track column: its colour is laid over the cell's own colour (opacity = strength) */
   .grid .btn.pad.colhl:not(.down) { background-image: linear-gradient(var(--colhl), var(--colhl)); }
+  /* round side buttons: an optional tint laid over whatever state colour they show */
+  .grid .btn.btn.fn, .grid .btn.btn.nav, .grid .btn.btn.mode, .grid .btn.btn.track { background-image: linear-gradient(var(--roundtint, transparent), var(--roundtint, transparent)); }
   .btn.pad.sel { background: var(--sel); color: var(--sel-ink); font-weight: 500; }
   .btn.pad.hot { background: var(--hot); color: var(--hot-ink); font-weight: 500; }
   .btn.pad.rec { background: var(--rec); color: var(--rec-ink); font-weight: 600; }
@@ -378,7 +380,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.78'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.79'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3190,7 +3192,7 @@ const THEMES = {
    played = overlay on a note while it sounds · column = the selected track's column */
 const TOKENS = [
   ['idle', 'Idle (off)'], ['idleB', 'Idle B'], ['active', 'Active'], ['space', 'Non-interactive space'],
-  ['pressed', 'Pressed'], ['played', 'Currently played note (overlay)'], ['playhead', 'Playhead'], ['column', 'Highlighted track column'], ['warning', 'Warning (REC, CLEAR)'], ['success', 'Success (SAVE)'],
+  ['pressed', 'Pressed'], ['played', 'Currently played note (overlay)'], ['playhead', 'Playhead'], ['column', 'Highlighted track column'], ['warning', 'Warning (REC, CLEAR)'], ['success', 'Success (SAVE)'], ['tint', 'Side buttons tint (overlay)'],
 ];
 const TOKEN_ROLES = { // role -> token
   pad: 'idle', keyL: 'idle', empty: 'idle', solo: 'idle', arm: 'idle', clipoff: 'idle',
@@ -3205,7 +3207,7 @@ const TOKEN_ROLES = { // role -> token
 };
 const MONO_TOKENS = {
   idle: ['#808080', 2], idleB: ['#404040', 1], active: ['#bfbfbf', 3], space: ['#1e1e1e', 0],
-  pressed: ['#ffffff', 3], played: ['rgba(255, 255, 255, 0.2)', 0], playhead: ['rgba(255, 255, 255, 0.75)', 3], column: ['rgba(255, 255, 255, 0.1)', 1], warning: ['#e8221b', 5], success: ['#2fbf4f', 21],
+  pressed: ['#ffffff', 3], played: ['rgba(255, 255, 255, 0.2)', 0], playhead: ['rgba(255, 255, 255, 0.75)', 3], column: ['rgba(255, 255, 255, 0.1)', 1], warning: ['#e8221b', 5], success: ['#2fbf4f', 21], tint: ['rgba(255, 255, 255, 0)', 0],
 };
 function tokenTheme(name, tokens) {
   if (!tokens.playhead) { // themes saved before the playhead colour: the played-note colour at 75 %
@@ -3214,12 +3216,14 @@ function tokenTheme(name, tokens) {
   }
   if (!tokens.warning) tokens.warning = ['#e8221b', 5]; // themes saved before the warning colour: red
   if (!tokens.success) tokens.success = ['#2fbf4f', 21]; // … and before the success colour: green
+  if (!tokens.tint) tokens.tint = ['rgba(255, 255, 255, 0)', 0]; // … and before the side-button tint: none
   const t = { name, tokens, noteBoost: true };
   Object.entries(TOKEN_ROLES).forEach(([role, tk]) => { t[role] = [...tokens[tk]]; });
   t.queuedDim = [null, tokens.idleB[1]];
   const pl = tokens.played[0];
   t.vars = { '--note-own': pl, '--note-other': pl, '--pulse': pl, '--pulse-sel': pl, '--off-edge': 'transparent', '--rec-dim-ink': '#f2f2f2',
     '--colhl': tokens.column[0], // laid over the cells of the selected track's column
+    '--roundtint': tokens.tint[0], // laid over every round side button
     '--page': tokens.space[0] }; // non-interactive space = the page behind the grid
   return t;
 }
@@ -3444,8 +3448,9 @@ function currentTokens() {
   if (theme.tokens) return theme.tokens;
   const look = { idle: probe('btn pad'), idleB: probe('btn pad dark'), active: probe('btn pad sel'), space: rgbaOf(getComputedStyle(document.body).backgroundColor),
     pressed: probe('btn pad down'), played: (() => { const e = document.createElement('i'); e.style.color = 'var(--note-own)'; edProbeBox.append(e); const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c); })(),
-    column: (() => { const e = document.createElement('i'); e.style.color = 'var(--colhl)'; edProbeBox.append(e); const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c); })(), playhead: probe('btn pad playhead'), warning: probe('btn pad rec'), success: probe('btn fn ok', 'aria-pressed') };
-  const leds = { idle: led('pad'), idleB: led('keyD'), active: led('sel'), space: 0, pressed: led('press'), played: 0, column: led('emptyCur'), playhead: led('sel'), warning: led('rec'), success: led('success') };
+    column: (() => { const e = document.createElement('i'); e.style.color = 'var(--colhl)'; edProbeBox.append(e); const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c); })(), playhead: probe('btn pad playhead'), warning: probe('btn pad rec'), success: probe('btn fn ok', 'aria-pressed'),
+    tint: (() => { const e = document.createElement('i'); e.style.color = 'var(--roundtint, transparent)'; edProbeBox.append(e); const c = getComputedStyle(e).color; e.remove(); return rgbaOf(c); })() };
+  const leds = { idle: led('pad'), idleB: led('keyD'), active: led('sel'), space: 0, pressed: led('press'), played: 0, column: led('emptyCur'), playhead: led('sel'), warning: led('rec'), success: led('success'), tint: 0 };
   return Object.fromEntries(TOKENS.map(([k]) => [k, [cssOf(toHex(look[k]), look[k][3]), leds[k]]]));
 }
 // first edit: a Custom theme made of the current seven colours
@@ -3495,7 +3500,7 @@ function edRender() {
       const a = Math.max(0, Math.min(100, +op.value || 0)) / 100;
       ensureCustom();
       const tk2 = prefs.customTheme.tokens;
-      tk2[tk] = [cssOf(h, a), tk === 'played' || tk === 'space' ? 0 : ledNearest(h, a)];
+      tk2[tk] = [cssOf(h, a), tk === 'played' || tk === 'space' || tk === 'tint' ? 0 : ledNearest(h, a)];
       THEMES.custom = tokenTheme(prefs.customTheme.name, tk2); savePrefs(); applyTheme('custom'); show();
       $io('ioEdName').textContent = theme.name; $io('ioEdReset').disabled = false; rs.disabled = false;
     };
