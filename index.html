@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.94'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.95'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3122,6 +3122,13 @@ function applyLayout() {
     const lab = prefs.layout === 'mini' ? `${L}\nVIEW ${arrow}` : L;
     if (labelOf(b) !== lab) setLabel(b, lab);
     b.setAttribute('aria-pressed', String(prefs.layout === 'mini' && miniView[k]));
+  });
+  // swapped spots: PLAY/STOP \u2194 TAP TEMPO and REC \u2194 CLICK (PLAY and REC sit in the right column, TAP and CLICK in the top row)
+  [[fnKeys.PLAY, fnKeys.TAP], [fnKeys.REC, fnKeys.CLICK]].forEach(([a, b]) => {
+    if (!a || !b) return;
+    [a.style.gridRow, b.style.gridRow] = [b.style.gridRow, a.style.gridRow];
+    [a.style.gridColumn, b.style.gridColumn] = [b.style.gridColumn, a.style.gridColumn];
+    [a._hw, b._hw] = [b._hw, a._hw];
   });
   lpByHw = new Map([...grid.children].filter(el => el._hw).map(el => [el._hw, el]));
   lpLeds.clear(); // repaint every LED in the new layout
