@@ -391,7 +391,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v2.05'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v2.06'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -913,7 +913,11 @@ function voice(ti, note, t) {
 }
 function voiceSynth(ti, note, t) {
   const lt = S.tracks[ti];
-  if (lt.loop >= 0 && loopSlots[lt.loop]) { if (lt.chop) startSlice(lt, ti, t, sliceOf(note, sliceCount(lt))); else startLoop(lt, ti, t); return SILENT; } // any note launches the loop from its start
+  if (lt.loop >= 0 && loopSlots[lt.loop]) { if (lt.chop) { // a slice loops for as long as its note is held
+      const src = startSlice(lt, ti, t, sliceOf(note, sliceCount(lt)));
+      return { stop(t2) { if (src && lt._loopSrc === src) { try { src.stop(Math.max(t2, t)); } catch (e) {} lt._loopSrc = null; } } };
+    }
+    startLoop(lt, ti, t); return SILENT; } // any note launches the loop from its start
   flashTrack(ti, t);
   flashNote(ti, note, t);
   const tr = S.tracks[ti], snd = soundFor(tr, note), P = PRESETS[snd.preset], L = snd.L, c = AC;
@@ -2062,7 +2066,8 @@ function startLoop(tr, i, t) {
   flashTrack(i, t);
 }
 // CHOP: the loop cut into 8 equal slices. White keys from C3 play slices 1–8 (C4 = 8, D4 wraps to 1)
-// CHOP: 1\u201312 slices (8 by default); hold a slice pad to set how many, like a clip's length
+// CHOP: 1\u201312 slices (8 by default); hold CHOP + tap a slice pad to set how many
+let chopHeld = null; // CHOP pad being held (to set the slice count)
 const MAX_SLICES = 12, WHITE7 = [0, 2, 4, 5, 7, 9, 11], WHITE_IDX = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
 const sliceCount = tr => tr.slices || 8;
 const sliceNote = k => 48 + 12 * Math.floor(k / 7) + WHITE7[k % 7]; // slice k = k-th white key from C3
@@ -2075,7 +2080,7 @@ const isChopPad = (r, c) => r === sliceRow0() && c === 0;
 const slicePad = (r, c) => { const c0 = isMini() ? 1 : 2, r0 = sliceRow0(); return r >= r0 && r < r0 + 2 && c >= c0 && c < c0 + 6 ? (r - r0) * 6 + c - c0 : null; };
 function startSlice(tr, i, t, k) {
   const L = loopSlots[tr.loop];
-  if (!L.buf) { ensureLoopBuf(tr.loop); return; }
+  if (!L.buf) { ensureLoopBuf(tr.loop); return null; }
   const semis = lpVal(tr, 'pitch'), ratio = Math.pow(2, semis / 12), buf = semis ? shiftedBuf(L, semis) : L.buf;
   const N = sliceCount(tr), region = L.buf.duration / N * ratio, steps = L.bars * 16 / N / lpVal(tr, 'speed'); // a slice = 1/N of the loop's steps
   if (tr._loopSrc) { try { tr._loopSrc.stop(t); } catch (e) {} } // one slice at a time, like a chopped break
@@ -2083,10 +2088,12 @@ function startSlice(tr, i, t, k) {
   src.buffer = buf;
   src.playbackRate.value = region / (steps * stepDur()); // stays in time with the tempo
   src.connect(bus[i].input);
-  src.start(t, region * k, region);
+  src.loop = true; src.loopStart = region * k; src.loopEnd = region * (k + 1); // repeats until the note ends
+  src.start(t, region * k);
   tr._loopSrc = src;
   flashTrack(i, t);
   flashNote(i, sliceNote(k), t);
+  return src;
 }
 // Granular time-stretch (overlap-add of windowed grains): same pitch, length \u00d7 factor. Cached per pitch.
 function stretchBuf(buf, factor) {
@@ -2416,7 +2423,7 @@ function padDesc(r, c) {
           if (isChopPad(r, c)) return { label: `CHOP\n${sliceCount(tr)}`, tone: tr.chop ? 'sel' : 'alldim' };
           const k = slicePad(r, c);
           if (k === null) return { tone: 'off' };
-          if (k >= sliceCount(tr)) return { label: '', tone: 'stepout' }; // past the last slice: hold to add slices up to here
+          if (k >= sliceCount(tr)) return { label: '', tone: 'stepout' }; // past the last slice: hold CHOP + tap to add slices up to here
           return { label: `SLICE\n${k + 1}`, tone: tr.chop ? 'white' : 'dim' };
         }
         if (r < 6) return { tone: 'off' };
@@ -2576,21 +2583,27 @@ function padDown(r, c) {
           const L = loopSlots[c], name = labelOf(trackButtons[curTrack]);
           say(tr.loop === c ? `${name} plays ${L.name} (${L.bars} bar${L.bars > 1 ? 's' : ''}) · starts on the next bar${playing ? '' : ' after PLAY'}` : `${name} loop off`);
         } else if (isLoopTrack(tr) && r >= sliceRow0()) { // loop: CHOP on/off, or play a slice
-          if (isChopPad(r, c)) {
-            commit(); tr.chop = !tr.chop;
-            say(tr.chop ? `CHOP · ${sliceCount(tr)} slices · white keys from C3 play them` : 'Whole loop · any note launches it');
+          if (isChopPad(r, c)) { // tap = CHOP on/off · hold + tap a slice pad = that many slices
+            chopHeld = { used: false };
+            const me = chopHeld;
+            info.hold = 0;
+            info.onTap = () => {
+              if (chopHeld === me) chopHeld = null;
+              if (me.used) return;
+              commit(); tr.chop = !tr.chop;
+              say(tr.chop ? `CHOP · ${sliceCount(tr)} slices · hold CHOP + tap a pad to change` : 'Whole loop · any note launches it');
+            };
             break;
           }
           const k = slicePad(r, c);
           if (k === null) break;
-          // hold a slice pad = that many slices (works past the last one too)
-          info.hold = setTimeout(() => {
-            info.held = true;
+          if (chopHeld) { // CHOP held: this pad sets the number of slices (past the last one too)
+            chopHeld.used = true;
             commit(); tr.chop = true; tr.slices = k + 1;
             say(`CHOP · ${k + 1} slice${k ? 's' : ''}`);
-            render();
-          }, 600);
-          if (k >= sliceCount(tr)) { say('Past the last slice · hold a pad to chop into more'); break; }
+            break;
+          }
+          if (k >= sliceCount(tr)) { say('Past the last slice · hold CHOP + tap here to chop into more'); break; }
           if (!tr.chop) { commit(); tr.chop = true; }
           const n = sliceNote(k);
           info.v = voice(curTrack, n, AC.currentTime); info.rec = recordOn(curTrack, n); tr.last = n;
