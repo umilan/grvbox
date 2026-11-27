@@ -378,7 +378,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.75'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.76'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1797,8 +1797,9 @@ function settingsDown(r, c) {
   else if (c === 0) { S.clickVel = 7 - r; playClick(AC.currentTime, true); say(`Click velocity ${S.clickVel + 1}/8`); }
   else { S.swing = 7 - r; say(`Swing ${swingPct()}%`); }
 }
-// FX/EDIT page 1 rows, bottom to top: DELAY, REVERB, DRIVE, FILTER, CHORUS, TREM, CRUSH (top row empty)
-const fxAt = r => 8 - r;
+// FX rows follow the signal chain, top to bottom: DRIVE, CRUSH (tone shaping) · FILTER · CHORUS, TREM (modulation)
+// · DELAY, REVERB (space) — the same order the effects are wired in (FX_ORDER). Top row: XY shortcuts.
+const fxAt = r => FX_ORDER[r - 1];
 // SETTINGS page: one toggle pad per setting, in reading order (white = on)
 function prefsDesc(r, c) {
   const p = PREFS[r * 8 + c];
