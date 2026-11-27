@@ -388,7 +388,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.98'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.99'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -802,7 +802,8 @@ let message = '', messageTimer = null;
 /* ============================== HISTORY ============================== */
 const hist = [], fut = [];
 const snap = () => JSON.stringify(S.tracks.map(t => ({ preset: t.preset, L: t.L, fxOn: t.fxOn, fxP: t.fxP, fxFocus: t.fxFocus, lp: t.lp, clips: t.clips, split: t.split, kit: t.kit, kitName: t.kitName, active: t.active, stopped: t.stopped })));
-function commit() { hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
+function commit() { if (S.rec) return; // while recording, everything belongs to the take's single UNDO step
+  hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
 function restore(json) {
   JSON.parse(json).forEach((d, i) => {
     const t = S.tracks[i];
@@ -1297,8 +1298,7 @@ function ensureClip(tr) {
 function recordOn(ti, n) {
   if (!(S.rec && playing && lastPlayed)) return null;
   const tr = S.tracks[ti];
-  commit();
-  ensureClip(tr);
+  ensureClip(tr); // no UNDO step per note: the whole recording is one UNDO step (taken when REC goes on)
   const now = AC.currentTime;
   const q = Math.round(lastPlayed.s + (now - lastPlayed.t) / stepDur());
   const cl = tr.clips[tr.active];
@@ -1785,9 +1785,10 @@ function shiftOct(d) {
   }
   S.oct = Math.max(0, Math.min(5, S.oct + d)); render(); say(`Octave ${S.oct}`); }
 function setRec(on) {
+  if (on && !S.rec) commit(); // one UNDO step for the whole take: taken before REC goes on
   S.rec = on;
   S.recStop = false;
-  if (on) { ensureClipCommit(S.tracks[curTrack]); if (!playing) startPlay(); }
+  if (on) { ensureClip(S.tracks[curTrack]); if (!playing) startPlay(); }
   else document.documentElement.classList.remove('recflash');
   freeBlink();
   syncFnKeys(); render(); say(on ? `Recording on track ${labelOf(trackButtons[curTrack])}` : 'Recording off');
