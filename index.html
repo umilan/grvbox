@@ -383,7 +383,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.87'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.88'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -857,7 +857,7 @@ function clipPadFor(ti) {
   const tr = S.tracks[ti], slot = tr.active;
   if (slot < 0 || tr.stopped || !tr.clips[slot]) return null;
   let r = slot;
-  if (isMini() && !page2) r = slot + 1;                                   // LP MINI shifts the slots down a row
+  if (isMini() && !page2 && !miniView.up) r = slot + 1;                 // LP MINI shifts the slots down a row
   if (page2 && r >= 2) return null; // step edit shows only the preview rows
   if (r > 5 || (isMini() && r < 1)) return null;
   return pads[r] && pads[r][ti];
@@ -1643,6 +1643,7 @@ for (let r = 0; r < 10; r++) {
         fnKeys.SET2 = b;
         toggleKey(b, openSettings);
       }
+      else if (r === 5 || r === 6) { momentaryKey(b, () => toggleMiniView(r === 5 ? 'up' : 'right')); b.setAttribute('aria-pressed', 'false'); }
       else momentaryKey(b, () => {});
       grid.appendChild(b);
       continue;
@@ -1744,7 +1745,7 @@ function say(t) {
 // LP MINI hides the top pad row, so on the CLIPS page the clip slots move up one row:
 // visible rows show slots 1–5, then MUTE and SOLO
 const isMini = () => prefs.layout === 'mini';
-const clipRow = r => isMini() && !page2 ? (r <= 5 ? r - 1 : r) : r;
+const clipRow = r => isMini() && !page2 && !miniView.up ? (r <= 5 ? r - 1 : r) : r;
 // LP MINI has 7 tracks: track 8 is hidden and silent
 const trackOff = i => isMini() && i === 7;
 // SND little keyboard's ALL button: where the high C was; LP MINI hides that column, so it sits in the gap above the low C
@@ -3039,6 +3040,14 @@ function render() { renderPads(); renderTracks(); renderModes(); renderScreen();
    (KEYS in the bottom-right corner), and tracks 1\u20137 sit on the bottom row
    (no track 8: it is hidden and silent). On CLIPS the slots move up a row so slot 1 stays visible. */
 [...grid.children].forEach((el, i) => { el.dataset.r = Math.floor(i / 10); el.dataset.c = (i % 10) - 1; });
+// LP MINI view of the pads: normally the bottom-left 7\u00d77; E = show the top row, F = show the right column
+const miniView = { up: false, right: false };
+function toggleMiniView(which) {
+  if (!isMini()) return say('VIEW shifts only exist in the LP MINI layout');
+  miniView[which] = !miniView[which];
+  releaseAll(); applyLayout(); render();
+  say(`View \u00b7 ${miniView.up ? 'top' : 'bottom'} ${miniView.right ? 'right' : 'left'} 7\u00d77`);
+}
 function placeOf(r, c) {
   if (prefs.layout !== 'mini') return [r + 1, c + 2];
   if (r === 0 && c === 8) return [1, 9];                         // settings gear (with the version under it)
@@ -3046,7 +3055,9 @@ function placeOf(r, c) {
   if (r === 9) return c >= 0 && c <= 6 ? [9, c + 2] : null;     // tracks 1\u20137 (no track 8)
   if (c === -1) return r >= 1 && r <= 8 ? [r + 1, 1] : null;    // A\u2013H
   if (c === 8) return r >= 1 && r <= 7 ? [r + 1, 9] : r === 8 ? [9, 9] : null;     // TAP \u2026 CLIPS, KEYS in the bottom-right corner
-  return r >= 2 && c <= 6 ? [r, c + 2] : null;                 // pads: bottom-left 7\u00d77 (top pad row and right pad column trimmed)
+  // pads: a 7\u00d77 view of the 8\u00d78; E / F shift it up / right so every pad can be reached
+  const rowOff = miniView.up ? 0 : 1, colOff = miniView.right ? 1 : 0, pr = r - 1;
+  return pr >= rowOff && pr <= rowOff + 6 && c >= colOff && c <= colOff + 6 ? [r - rowOff + 1, c - colOff + 2] : null;
 }
 function applyLayout() {
   const n = prefs.layout === 'mini' ? 9 : 10;
@@ -3059,6 +3070,13 @@ function applyLayout() {
     el._hw = pos && !el.hidden && el.classList.contains('btn') ? hwId(pos[0], pos[1]) : null;
   });
   document.documentElement.classList.toggle('lp-mini', prefs.layout === 'mini');
+  // E / F carry the view shifts on LP MINI (plain letters otherwise)
+  [['E', 'up', '\u2191'], ['F', 'right', '\u2192']].forEach(([L, k, arrow], j) => {
+    const b = document.getElementById(`btn-${5 + j}-left`); if (!b) return;
+    const lab = prefs.layout === 'mini' ? `${L}\nVIEW ${arrow}` : L;
+    if (labelOf(b) !== lab) setLabel(b, lab);
+    b.setAttribute('aria-pressed', String(prefs.layout === 'mini' && miniView[k]));
+  });
   lpByHw = new Map([...grid.children].filter(el => el._hw).map(el => [el._hw, el]));
   lpLeds.clear(); // repaint every LED in the new layout
   document.querySelectorAll('#hwPick button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.hw === (prefs.layout || 'pro'))));
