@@ -388,7 +388,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.99'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v2.00'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -3036,7 +3036,7 @@ function renderModes() {
 }
 function syncFnKeys() {
   fnKeys.PLAY.setAttribute('aria-pressed', String(playing));
-  fnKeys.PLAY.classList.toggle('recplay', S.rec);
+  fnKeys.PLAY.classList.remove('recplay');
   fnKeys.CLICK.setAttribute('aria-pressed', String(S.click));
   fnKeys.REC.setAttribute('aria-pressed', String(S.rec));
   fnKeys.CLICK.classList.toggle('settings', settings);
