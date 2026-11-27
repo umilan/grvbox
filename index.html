@@ -378,7 +378,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.76'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.77'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -2221,6 +2221,41 @@ function blinkLoop() {
   setTimeout(blinkLoop, 60000 / S.bpm / 4);
 }
 setTimeout(blinkLoop, 0); // starts once the page has loaded
+/* ---------- CLIPS bottom rows, as in Ableton's session view ----------
+   row 7: STOP per track · row 8: SCENE 1–6 (launch that row of clips on every track; an empty slot stops
+   its track) and STOP ALL. While playing, changes happen at the next bar like any clip launch. */
+const trackPlaying = t => t.active >= 0 && !t.stopped && !!t.clips[t.active];
+function stopTrack(i, quiet) {
+  const t = S.tracks[i];
+  if (playing) { if (trackPlaying(t)) t.queued = 'stop'; else t.queued = null; }
+  else t.stopped = true;
+  if (!quiet) say(`${labelOf(trackButtons[i])} \u00b7 stop${playing ? ' at the next bar' : ''}`);
+}
+function stopAll() {
+  S.tracks.forEach((t, i) => stopTrack(i, true));
+  say(playing ? 'All clips stop at the next bar' : 'All clips stopped');
+}
+function launchScene(slot) {
+  S.tracks.forEach((t, i) => {
+    if (!t.clips[slot]) return stopTrack(i, true);       // an empty slot stops its track
+    if (playing) { if (!(t.active === slot && trackPlaying(t))) t.queued = slot; else t.queued = null; }
+    else { t.active = slot; t.stopped = false; t.queued = null; }
+  });
+  say(`Scene ${slot + 1}${playing ? ' \u00b7 starts at the next bar' : ' \u00b7 press PLAY'}`);
+}
+function stopDesc(c) {
+  const t = S.tracks[c];
+  if (t.queued === 'stop') return { label: 'STOP', tone: 'queued' };
+  return { label: 'STOP', tone: trackPlaying(t) ? 'light' : 'dim' }; // lit while the track has a clip playing
+}
+function sceneDesc(c) {
+  if (c === 7) return { label: 'STOP\nALL', tone: S.tracks.some(trackPlaying) ? 'light' : 'dim' };
+  if (c === 6) return { tone: 'off' };
+  const used = S.tracks.some(t => t.clips[c]);
+  if (S.tracks.some(t => t.queued === c)) return { label: `SCENE ${c + 1}`, tone: 'queued' };
+  const on = used && S.tracks.every(t => t.clips[c] ? t.active === c && trackPlaying(t) : !trackPlaying(t));
+  return { label: `SCENE ${c + 1}`, tone: on ? 'sel' : used ? 'white' : 'dim' };
+}
 // one clip slot on the CLIPS page (or the step editor's preview rows)
 function clipSlotDesc(r, c) {
   const t = S.tracks[c], cl = t.clips[r], clab = `${instName(t)} ${r + 1}`; // e.g. KICK 1
@@ -2325,9 +2360,9 @@ function padDesc(r, c) {
     case 2: { // CLIP/SEQ
       if (!page2 || r < 2) { // step edit and loop edit preview clip slots 1–2
         r = clipRow(r);
-        // column = track (lines up with T1–T8), rows 1–6 are clip slots, then MUTE and SOLO (bottom)
-        if (r === 7) return { label: 'SOLO', tone: S.tracks[c].solo ? 'soloon' : 'solooff' };
-        if (r === 6) return { label: 'MUTE', tone: S.tracks[c].mute ? 'muteon' : 'muteoff', faded: anySoloed() };
+        // column = track (lines up with 1–8), rows 1–6 are clip slots, then STOP per track and the scene row (bottom)
+        if (r === 6) return stopDesc(c);
+        if (r === 7) return sceneDesc(c);
         const d = clipSlotDesc(r, c);
         return c === curTrack && !page2 ? { ...d, hl: true } : d; // the selected track's column: highlight on top
       }
@@ -2539,13 +2574,8 @@ function padDown(r, c) {
     case 2: {
       if (!page2 || r < 2) {
         r = clipRow(r);
-        if (r >= 6) {
-          const t = S.tracks[c], name = labelOf(trackButtons[c]);
-          if (r === 6) { t.mute = !t.mute; say(`${name} ${t.mute ? 'muted' : 'unmuted'}${anySoloed() ? ' · takes effect when solo is off' : ''}`); }
-          else { t.solo = !t.solo; say(`${name} solo ${t.solo ? 'on' : 'off'}`); }
-          applyMix();
-          break;
-        }
+        if (r === 6) { stopTrack(c); break; }               // STOP: this track's clip stops (at the next bar while playing)
+        if (r === 7) { c === 7 ? stopAll() : launchScene(c); break; } // SCENE 1–6 / STOP ALL
         const tt = S.tracks[c];
         if (mods.clear) { // CLEAR + tap a clip: delete it
           if (!tt.clips[r]) { say('That slot is already empty'); break; }
@@ -2675,7 +2705,8 @@ function onState(r, c) {
   }
   const t = S.tracks[c];
   if (activeMode === 0 && !page2 && r > 0) return !!t.fxOn[fxAt(r)];
-  if ((activeMode === 4 || (activeMode === 2 && !page2)) && r >= 6) return r === 7 ? t.solo : t.mute;
+  if (activeMode === 4 && r >= 6) return r === 7 ? t.solo : t.mute;
+  if (activeMode === 2 && !page2 && r >= 6) return null; // STOP / scene pads: no painting
   if (activeMode === 2 && page2 && r >= 2) {
     const tr = S.tracks[curTrack], cl = tr.clips[tr.active], L = stepLayout(cl);
     if (tr.loop >= 0 && loopSlots[tr.loop]) return null;
