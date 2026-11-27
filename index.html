@@ -378,7 +378,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.77'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.78'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1844,6 +1844,9 @@ let projStore = {
     }
   } catch (e) { /* keep browser storage */ }
   try { projects = await projStore.load(); } catch (e) { projects = {}; }
+  // reopen the song you had last (loaded or saved), so the songs page shows it as the current one
+  const last = prefs.lastSong;
+  if (last >= 0 && currentProj < 0 && (projects[last] || DEMOS[last])) { loadProject(last); hist.length = 0; } // nothing to undo at start
   if (projPage) render();
 })();
 function projectState() {
@@ -1869,7 +1872,7 @@ async function saveProject(slot, overwrite) {
   const rec = { savedAt: Date.now(), data: JSON.stringify(projectState()) };
   try {
     await projStore.put(slot, rec);
-    projects[slot] = rec; currentProj = slot;
+    projects[slot] = rec; currentProj = slot; rememberSong();
     say(`Project ${slot + 1} ${overwrite ? 'overwritten' : 'saved'} (${projStore.where})`);
   } catch (e) { say(`Couldn't save project ${slot + 1}: ${e?.code === 'quota_exceeded' ? 'storage is full' : 'try again'}`); }
   render();
@@ -2115,12 +2118,13 @@ function quickSave(asNew) {
   if (slot < 0) return say('All 128 song slots are full · delete one on the SONGS page (CLEAR + tap)');
   saveProject(slot, !!projects[slot]);
 }
+function rememberSong() { prefs.lastSong = currentProj; savePrefs(); }
 function loadProject(slot) {
   try {
     commit(); // UNDO brings back what you had before loading
     const demo = !projects[slot] && DEMOS[slot];
     applyProject(JSON.parse(demo ? demo.data : projects[slot].data));
-    currentProj = slot;
+    currentProj = slot; rememberSong();
     say(demo ? `Song ${slot + 1} \u00b7 ${demo.name} loaded (built-in)` : `Project ${slot + 1} loaded`);
   } catch (e) { say(`Couldn't load project ${slot + 1}`); }
   render();
@@ -2129,7 +2133,7 @@ async function deleteProject(slot) {
   try {
     await projStore.del(slot);
     delete projects[slot];
-    if (currentProj === slot) currentProj = -1;
+    if (currentProj === slot) { currentProj = -1; rememberSong(); }
     say(`Project ${slot + 1} deleted`);
   } catch (e) { say(`Couldn't delete project ${slot + 1}`); }
   render();
