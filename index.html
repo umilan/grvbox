@@ -380,7 +380,7 @@
 
 <script>
 /* ============================== DATA ============================== */
-const APP_VERSION = 'v1.80'; // shown in the grid's top-left corner; bumped with every change
+const APP_VERSION = 'v1.81'; // shown in the grid's top-left corner; bumped with every change
 
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
@@ -1358,8 +1358,9 @@ if (!customLabels._v3) {
   customLabels = moved;
   try { localStorage.setItem(LABEL_KEY, JSON.stringify(customLabels)); } catch (e) {}
 }
+let hwPress = false; // true while a Launchpad press is being passed to a button
 function secondTap(b) {
-  if (!prefs.rename) return false; // renaming is off unless switched on in SETTINGS
+  if (!prefs.rename || hwPress) return false; // renaming is off unless switched on in SETTINGS; never from the Launchpad
   const now = performance.now(), dbl = b._lastPress !== undefined && now - b._lastPress < 400;
   b._lastPress = dbl ? undefined : now;
   return dbl;
@@ -3078,8 +3079,11 @@ function lpPress(id, down) {
   const r = +el.dataset.r, c = +el.dataset.c;
   if (r >= 1 && r <= 8 && c >= 0 && c <= 7) return down ? padDown(r - 1, c) : padUp(r - 1, c);
   const o = { bubbles: true, pointerId: 1000 + id, isPrimary: false };
-  if (down) el.dispatchEvent(new PointerEvent('pointerdown', o));
-  else { el.dispatchEvent(new PointerEvent('pointerup', o)); el.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+  hwPress = true; // quick repeated presses on the hardware are presses, never a rename double-tap
+  try {
+    if (down) el.dispatchEvent(new PointerEvent('pointerdown', o));
+    else { el.dispatchEvent(new PointerEvent('pointerup', o)); el.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+  } finally { hwPress = false; }
 }
 // the Launchpad's main port (not DAW / DIN); with SysEx allowed, switch it to Programmer mode
 function lpConnect(access) {
